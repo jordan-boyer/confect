@@ -13,7 +13,7 @@ const makeFunctionPath = (
   groupSegments: readonly [string, ...string[]],
   name: string,
 ): FunctionPath.FunctionPath =>
-  FunctionPath.FunctionPath.make({
+  new FunctionPath.FunctionPath({
     groupPath: GroupPath.make(groupSegments),
     name,
   });

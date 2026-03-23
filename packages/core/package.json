@@ -53,10 +53,10 @@
   "license": "ISC",
   "devDependencies": {
     "@ark/attest": "0.56.0",
-    "@effect/vitest": "0.27.0",
+    "@effect/vitest": "4.0.0-beta.37",
     "@eslint/js": "10.0.1",
     "@types/node": "25.3.3",
-    "effect": "3.19.19",
+    "effect": "4.0.0-beta.37",
     "eslint": "10.0.2",
     "prettier": "3.8.1",
     "tsdown": "0.20.3",
@@ -67,7 +67,7 @@
   },
   "peerDependencies": {
     "convex": "^1.30.0",
-    "effect": "^3.19.16"
+    "effect": "^4.0.0-beta.37"
   },
   "engines": {
     "node": ">=22",

@@ -1,7 +1,7 @@
 import { Spec } from "@confect/core";
 import { DatabaseSchema } from "@confect/server";
-import { Command } from "@effect/cli";
-import { FileSystem, Path } from "@effect/platform";
+import { Command } from "effect/unstable/cli";
+import { FileSystem, Path } from "effect";
 import { Effect, Match, Option } from "effect";
 import {
   logFileAdded,
@@ -25,7 +25,7 @@ import {
 
 const getNodeSpecPath = Effect.gen(function* () {
   const path = yield* Path.Path;
-  const confectDirectory = yield* ConfectDirectory.get;
+  const confectDirectory = yield* (yield* ConfectDirectory).get;
   return path.join(confectDirectory, "nodeSpec.ts");
 });
 
@@ -88,7 +88,7 @@ export const codegenHandler = Effect.gen(function* () {
 const generateConfectGeneratedDirectory = Effect.gen(function* () {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
-  const confectDirectory = yield* ConfectDirectory.get;
+  const confectDirectory = yield* (yield* ConfectDirectory).get;
 
   if (!(yield* fs.exists(path.join(confectDirectory, "_generated")))) {
     yield* fs.makeDirectory(path.join(confectDirectory, "_generated"), {
@@ -100,7 +100,7 @@ const generateConfectGeneratedDirectory = Effect.gen(function* () {
 
 const generateApi = Effect.gen(function* () {
   const path = yield* Path.Path;
-  const confectDirectory = yield* ConfectDirectory.get;
+  const confectDirectory = yield* (yield* ConfectDirectory).get;
 
   const apiPath = path.join(confectDirectory, "_generated", "api.ts");
   const apiDir = path.dirname(apiPath);
@@ -124,7 +124,7 @@ const generateApi = Effect.gen(function* () {
 export const generateNodeApi = Effect.gen(function* () {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
-  const confectDirectory = yield* ConfectDirectory.get;
+  const confectDirectory = yield* (yield* ConfectDirectory).get;
 
   const nodeSpecPath = yield* getNodeSpecPath;
   const nodeApiPath = path.join(confectDirectory, "_generated", "nodeApi.ts");
@@ -158,7 +158,7 @@ export const generateNodeApi = Effect.gen(function* () {
 const generateFunctionModules = Effect.gen(function* () {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
-  const confectDirectory = yield* ConfectDirectory.get;
+  const confectDirectory = yield* (yield* ConfectDirectory).get;
 
   const specPath = path.join(confectDirectory, "spec.ts");
 
@@ -183,8 +183,8 @@ const generateFunctionModules = Effect.gen(function* () {
 
 const generateSchema = Effect.gen(function* () {
   const path = yield* Path.Path;
-  const confectDirectory = yield* ConfectDirectory.get;
-  const convexDirectory = yield* ConvexDirectory.get;
+  const confectDirectory = yield* (yield* ConfectDirectory).get;
+  const convexDirectory = yield* (yield* ConvexDirectory).get;
 
   const confectSchemaPath = path.join(confectDirectory, "schema.ts");
 
@@ -214,7 +214,7 @@ const generateSchema = Effect.gen(function* () {
 
 const generateServices = Effect.gen(function* () {
   const path = yield* Path.Path;
-  const confectDirectory = yield* ConfectDirectory.get;
+  const confectDirectory = yield* (yield* ConfectDirectory).get;
 
   const confectGeneratedDirectory = path.join(confectDirectory, "_generated");
 
@@ -233,7 +233,7 @@ const generateServices = Effect.gen(function* () {
 
 const generateRegisteredFunctions = Effect.gen(function* () {
   const path = yield* Path.Path;
-  const confectDirectory = yield* ConfectDirectory.get;
+  const confectDirectory = yield* (yield* ConfectDirectory).get;
 
   const confectGeneratedDirectory = path.join(confectDirectory, "_generated");
 
@@ -261,7 +261,7 @@ const generateRegisteredFunctions = Effect.gen(function* () {
 export const generateNodeRegisteredFunctions = Effect.gen(function* () {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
-  const confectDirectory = yield* ConfectDirectory.get;
+  const confectDirectory = yield* (yield* ConfectDirectory).get;
 
   const nodeImplPath = path.join(confectDirectory, "nodeImpl.ts");
   const nodeSpecPath = yield* getNodeSpecPath;
@@ -300,7 +300,7 @@ export const generateNodeRegisteredFunctions = Effect.gen(function* () {
 const generateRefs = Effect.gen(function* () {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
-  const confectDirectory = yield* ConfectDirectory.get;
+  const confectDirectory = yield* (yield* ConfectDirectory).get;
 
   const confectGeneratedDirectory = path.join(confectDirectory, "_generated");
   const refsPath = path.join(confectGeneratedDirectory, "refs.ts");

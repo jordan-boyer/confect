@@ -40,11 +40,16 @@ export default Spec.makeNode().add(email);
 
 ## Node Impl
 
-A node impl uses `nodeApi` from `_generated/nodeApi` instead of `api`, and `Impl.make(nodeApi)` to construct the implementation. Each function impl contains a handler that runs in the Node.js runtime, where you have access to [`NodeContext` services](https://effect-ts.github.io/effect/platform-node/NodeContext.ts.html#nodecontext-type-alias), which are accessible via the `@effect/platform` package.
+A node impl uses `nodeApi` from `_generated/nodeApi` instead of `api`, and `Impl.make(nodeApi)` to construct the implementation. Each function impl contains a handler that runs in the Node.js runtime.
+
+With **Effect 4** and **`@effect/platform-node`**, node action handlers may require **`NodeServices`** in their context (for example `FileSystem`, `Path`, `ChildProcessSpawner`, `Stdio`, `Terminal`). Confect types node handlers accordingly. At runtime, provide `NodeServices.layer` when you run entrypoints locally; in Convex’s Node action environment, the platform supplies what the runtime needs.
+
+The old `@effect/platform` **`Command`** helper is not part of the Effect 4 stack used by Confect’s dependencies. For subprocesses, use **`ChildProcess`** from [`effect/unstable/process`](https://effect.website) together with the **`ChildProcessSpawner`** service (included in **`NodeServices`**, which Confect already provides for node actions).
 
 ```ts confect/node/email.impl.ts
 import { FunctionImpl, GroupImpl } from "@confect/server";
-import { Command } from "@effect/platform";
+import * as ChildProcess from "effect/unstable/process/ChildProcess";
+import { ChildProcessSpawner } from "effect/unstable/process/ChildProcessSpawner";
 import { Console, Duration, Effect, Layer } from "effect";
 import nodeApi from "../_generated/nodeApi";
 
@@ -53,12 +58,18 @@ const send = FunctionImpl.make(
   "email",
   "send",
   Effect.fn(function* ({ to, subject, body }) {
-    const result = yield* Command.make(
-      "echo",
-      `Sending email to ${to} with subject ${subject} and body ${body}…`,
-    ).pipe(Command.stdout("pipe"), Command.string, Effect.orDie);
+    const msg = `Sending email to ${to} with subject ${subject} and body ${body}…`;
+    const spawner = yield* ChildProcessSpawner;
+    const result = yield* spawner
+      .string(
+        ChildProcess.make("echo", [msg], {
+          stdin: "ignore",
+          stderr: "inherit",
+        }),
+      )
+      .pipe(Effect.orDie);
 
-    yield* Console.log(result);
+    yield* Console.log(result.trimEnd());
     yield* Effect.sleep(Duration.seconds(1));
     yield* Console.log("Email sent!");
 

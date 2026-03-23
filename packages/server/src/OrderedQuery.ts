@@ -2,7 +2,7 @@ import type {
   OrderedQuery as ConvexOrderedQuery,
   PaginationResult,
 } from "convex/server";
-import { Chunk, Effect, identity, type Option, pipe, Stream } from "effect";
+import { Effect, Schema, identity, type Option, pipe, Stream } from "effect";
 import * as Document from "./Document";
 import type * as TableInfo from "./TableInfo";
 
@@ -40,10 +40,11 @@ export type OrderedQuery<
 export const make = <
   TableInfo_ extends TableInfo.AnyWithProps,
   TableName extends string,
+  Fields extends Schema.Struct<Schema.Struct.Fields>,
 >(
   query: ConvexOrderedQuery<TableInfo.ConvexTableInfo<TableInfo_>>,
   tableName: TableName,
-  tableSchema: TableInfo.TableSchema<TableInfo_>,
+  tableSchema: Fields,
 ): OrderedQuery<TableInfo_, TableName> => {
   type OrderedQueryFunction<
     FunctionName extends keyof OrderedQuery<TableInfo_, TableName>,
@@ -63,15 +64,10 @@ export const make = <
     pipe(stream(), Stream.take(1), Stream.runHead);
 
   const take: OrderedQueryFunction<"take"> = (n: number) =>
-    pipe(
-      stream(),
-      Stream.take(n),
-      Stream.runCollect,
-      Effect.map((chunk) => Chunk.toReadonlyArray(chunk)),
-    );
+    pipe(stream(), Stream.take(n), Stream.runCollect);
 
   const collect: OrderedQueryFunction<"collect"> = () =>
-    pipe(stream(), Stream.runCollect, Effect.map(Chunk.toReadonlyArray));
+    pipe(stream(), Stream.runCollect);
 
   const paginate: OrderedQueryFunction<"paginate"> = (options) =>
     Effect.gen(function* () {

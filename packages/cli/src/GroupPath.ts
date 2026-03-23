@@ -1,34 +1,34 @@
 import { type GroupSpec, type Spec } from "@confect/core";
-import { Path } from "@effect/platform";
 import {
   Array,
-  Data,
   Effect,
   Option,
+  Path,
   pipe,
   Record,
   Schema,
   String,
 } from "effect";
-
 /**
  * The path to a group in the Confect API.
  */
 export class GroupPath extends Schema.Class<GroupPath>("GroupPath")({
-  pathSegments: Schema.Data(Schema.NonEmptyArray(Schema.NonEmptyString)),
+  pathSegments: Schema.NonEmptyArray(Schema.NonEmptyString),
 }) {}
 
 /**
  * Create a GroupPath from path segments.
  */
 export const make = (pathSegments: readonly [string, ...string[]]): GroupPath =>
-  GroupPath.make({ pathSegments: Data.array(pathSegments) });
+  new GroupPath({ pathSegments });
 
 /**
  * Append a group name to a GroupPath to create a new GroupPath.
  */
 export const append = (groupPath: GroupPath, groupName: string): GroupPath =>
-  make([...groupPath.pathSegments, groupName]);
+  make(
+    Array.append(groupPath.pathSegments, groupName),
+  );
 
 /**
  * Expects a path string of the form `./group1/group2.ts`, relative to the Convex functions directory.
@@ -43,9 +43,11 @@ export const fromGroupModulePath = (groupModulePath: string) =>
       const dirSegments = Array.filter(
         String.split(dir, path.sep),
         String.isNonEmpty,
-      );
+      ) as string[];
       yield* Effect.logDebug(Array.append(dirSegments, name));
-      return make(Array.append(dirSegments, name));
+      return make(
+        Array.append(dirSegments, name) as [string, ...string[]],
+      );
     } else {
       return yield* new GroupModulePathIsNotATypeScriptFileError({
         path: groupModulePath,
@@ -75,7 +77,7 @@ export const getGroupSpec = (
         pipe(
           Record.get(spec.groups, head),
           Option.flatMap((group) =>
-            Array.isNonEmptyArray(tail)
+            Array.isReadonlyArrayNonEmpty(tail)
               ? getGroupSpecHelper(group, tail)
               : Option.some(group),
           ),
@@ -95,7 +97,7 @@ const getGroupSpecHelper = (
         pipe(
           Record.get(group.groups, head),
           Option.flatMap((subGroup) =>
-            Array.isNonEmptyArray(tail)
+            Array.isReadonlyArrayNonEmpty(tail)
               ? getGroupSpecHelper(subGroup, tail)
               : Option.some(subGroup),
           ),
@@ -106,13 +108,13 @@ const getGroupSpecHelper = (
 export const toString = (groupPath: GroupPath) =>
   Array.join(groupPath.pathSegments, ".");
 
-export class GroupModulePathIsNotATypeScriptFileError extends Schema.TaggedError<GroupModulePathIsNotATypeScriptFileError>()(
+export class GroupModulePathIsNotATypeScriptFileError extends Schema.TaggedErrorClass<GroupModulePathIsNotATypeScriptFileError>()(
   "GroupModulePathIsNotATypeScriptFileError",
   {
     path: Schema.NonEmptyString,
   },
 ) {
-  override get message(): string {
+  get message(): string {
     return `Expected group module path to end with .ts, got ${this.path}`;
   }
 }

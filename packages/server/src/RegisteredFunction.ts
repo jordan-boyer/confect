@@ -4,11 +4,13 @@ import {
   type DefaultFunctionArgs,
   type FunctionVisibility,
   type GenericActionCtx,
+  type GenericDataModel,
   type RegisteredAction,
   type RegisteredMutation,
   type RegisteredQuery,
 } from "convex/server";
 import { Effect, Layer, pipe, Schema } from "effect";
+import type { Codec, SchemaError } from "effect/Schema";
 import * as ActionCtx from "./ActionCtx";
 import * as ActionRunner from "./ActionRunner";
 import * as Auth from "./Auth";
@@ -123,8 +125,8 @@ export const actionFunctionBase = <
   handler,
   createLayer,
 }: {
-  args: Schema.Schema<Args, ConvexArgs>;
-  returns: Schema.Schema<Returns, ConvexReturns>;
+  args: Codec<Args, ConvexArgs>;
+  returns: Codec<Returns, ConvexReturns>;
   handler: (a: Args) => Effect.Effect<Returns, E, R>;
   createLayer: (
     ctx: GenericActionCtx<DataModel.ToConvex<DataModel.FromSchema<Schema>>>,
@@ -138,15 +140,18 @@ export const actionFunctionBase = <
   ): Promise<ConvexReturns> =>
     pipe(
       actualArgs,
-      Schema.decode(args),
+      Schema.decodeUnknownEffect(args),
       Effect.orDie,
       Effect.andThen((decodedArgs) =>
         handler(decodedArgs).pipe(Effect.provide(createLayer(ctx))),
       ),
       Effect.andThen((convexReturns) =>
-        Schema.encodeUnknown(returns)(convexReturns),
+        Schema.encodeUnknownEffect(returns)(convexReturns),
       ),
-      Effect.runPromise,
+      (eff) =>
+        Effect.runPromise(
+          eff as Effect.Effect<ConvexReturns, SchemaError, never>,
+        ),
     ),
 });
 
@@ -188,6 +193,5 @@ export const actionLayer = <
       ActionCtx.ActionCtx<
         DataModel.ToConvex<DataModel.FromSchema<DatabaseSchema_>>
       >(),
-      ctx,
-    ),
+    )(ctx as unknown as GenericActionCtx<GenericDataModel>),
   );

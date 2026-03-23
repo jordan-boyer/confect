@@ -1,9 +1,14 @@
 import type { GenericDataModel, GenericQueryCtx } from "convex/server";
-import { Context } from "effect";
+import { ServiceMap } from "effect";
 
-export const QueryCtx = <DataModel extends GenericDataModel>() =>
-  Context.GenericTag<GenericQueryCtx<DataModel>>("@confect/server/QueryCtx");
+export type QueryCtxId = "@confect/server/QueryCtx";
 
-export type QueryCtx<DataModel extends GenericDataModel> = ReturnType<
-  typeof QueryCtx<DataModel>
->["Identifier"];
+const queryCtx = ServiceMap.Service<
+  QueryCtxId,
+  GenericQueryCtx<GenericDataModel>
+>("@confect/server/QueryCtx");
+
+export const QueryCtx = <_DataModel extends GenericDataModel>() => queryCtx;
+
+export type QueryCtx<_DataModel extends GenericDataModel = GenericDataModel> =
+  QueryCtxId;

@@ -1,6 +1,6 @@
 import type * as GroupPath from "@confect/core/GroupPath";
 import type * as GroupSpec from "@confect/core/GroupSpec";
-import { Context, Layer } from "effect";
+import { Layer, ServiceMap } from "effect";
 import type * as Api from "./Api";
 import type * as FunctionImpl from "./FunctionImpl";
 
@@ -13,7 +13,7 @@ export const GroupImpl = <GroupPath_ extends string>({
 }: {
   groupPath: GroupPath_;
 }) =>
-  Context.GenericTag<GroupImpl<GroupPath_>>(
+  ServiceMap.Service<GroupImpl<GroupPath_>>(
     `@confect/server/GroupImpl/${groupPath}`,
   );
 
@@ -33,10 +33,9 @@ export const make = <
     GroupImpl<GroupPath_>({
       groupPath,
     }),
-    {
-      groupPath,
-    },
-  ) as Layer.Layer<
+  )({
+    groupPath,
+  }) as Layer.Layer<
     GroupImpl<GroupPath_>,
     never,
     | FromGroupWithPath<GroupPath_, Api.Groups<Api_>>

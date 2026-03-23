@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { NodeContext, NodeRuntime } from "@effect/platform-node";
+import { NodeRuntime, NodeServices } from "@effect/platform-node";
 import { Effect } from "effect";
 import { cliApp } from "./cliApp";
 
@@ -16,7 +16,6 @@ process.on("exit", () => {
   }
 });
 
-cliApp(process.argv).pipe(
-  Effect.provide(NodeContext.layer),
-  NodeRuntime.runMain,
+NodeRuntime.runMain(
+  cliApp.pipe(Effect.provide(NodeServices.layer)),
 );

@@ -1,11 +1,16 @@
 import type { GenericDataModel, GenericMutationCtx } from "convex/server";
-import { Context } from "effect";
+import { ServiceMap } from "effect";
 
-export const MutationCtx = <DataModel extends GenericDataModel>() =>
-  Context.GenericTag<GenericMutationCtx<DataModel>>(
-    "@confect/server/MutationCtx",
-  );
+export type MutationCtxId = "@confect/server/MutationCtx";
 
-export type MutationCtx<DataModel extends GenericDataModel> = ReturnType<
-  typeof MutationCtx<DataModel>
->["Identifier"];
+const mutationCtx = ServiceMap.Service<
+  MutationCtxId,
+  GenericMutationCtx<GenericDataModel>
+>("@confect/server/MutationCtx");
+
+export const MutationCtx = <_DataModel extends GenericDataModel>() =>
+  mutationCtx;
+
+export type MutationCtx<
+  _DataModel extends GenericDataModel = GenericDataModel,
+> = MutationCtxId;

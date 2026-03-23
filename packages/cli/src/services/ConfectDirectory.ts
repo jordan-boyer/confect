@@ -1,27 +1,26 @@
-import { FileSystem, Path } from "@effect/platform";
-import { Effect, Ref, Schema } from "effect";
+import { Effect, FileSystem, Layer, Path, Ref, Schema, ServiceMap } from "effect";
 import { ConvexDirectory } from "./ConvexDirectory";
 
-export class ConfectDirectory extends Effect.Service<ConfectDirectory>()(
-  "@confect/cli/services/ConfectDirectory",
+export class ConfectDirectory extends ServiceMap.Service<
+  ConfectDirectory,
   {
-    effect: Effect.gen(function* () {
-      const convexDirectory = yield* findConfectDirectory;
+    readonly get: Effect.Effect<string, ConfectDirectoryNotFoundError, never>;
+  }
+>()("@confect/cli/services/ConfectDirectory") {}
 
-      const ref = yield* Ref.make<string>(convexDirectory);
+export const ConfectDirectoryLive = Layer.effect(ConfectDirectory)(
+  Effect.gen(function* () {
+    const confectDirectory = yield* findConfectDirectory;
+    const ref = yield* Ref.make(confectDirectory);
+    return { get: Ref.get(ref) };
+  }),
+);
 
-      return { get: Ref.get(ref) } as const;
-    }),
-    dependencies: [ConvexDirectory.Default],
-    accessors: true,
-  },
-) {}
-
-export class ConfectDirectoryNotFoundError extends Schema.TaggedError<ConfectDirectoryNotFoundError>()(
+export class ConfectDirectoryNotFoundError extends Schema.TaggedErrorClass<ConfectDirectoryNotFoundError>()(
   "ConfectDirectoryNotFoundError",
   {},
 ) {
-  override get message(): string {
+  get message(): string {
     return "Could not find Confect directory";
   }
 }
@@ -30,13 +29,13 @@ export const findConfectDirectory = Effect.gen(function* () {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
 
-  const convexDirectory = yield* ConvexDirectory.get;
+  const convexDirectory = yield* (yield* ConvexDirectory).get;
 
   const confectDirectory = path.join(path.dirname(convexDirectory), "confect");
 
   if (yield* fs.exists(confectDirectory)) {
     return confectDirectory;
   } else {
-    return yield* new ConfectDirectoryNotFoundError();
+    return yield* new ConfectDirectoryNotFoundError({});
   }
 });

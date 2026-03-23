@@ -9,5 +9,5 @@ test("UserIdentity's encoded type extends Convex type", () => {
   });
   type EncodedUserIdentity = (typeof _userIdentity)["Encoded"];
 
-  expectTypeOf<EncodedUserIdentity>().toExtend<ConvexUserIdentity>();
+  expectTypeOf<EncodedUserIdentity>().toMatchTypeOf<ConvexUserIdentity>();
 });

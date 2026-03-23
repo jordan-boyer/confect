@@ -2,15 +2,19 @@ import type { GroupSpec, Spec } from "@confect/core";
 import { HashSet, Option, pipe, Record, Schema } from "effect";
 import * as FunctionPath from "./FunctionPath";
 import * as GroupPath from "./GroupPath";
-import * as GroupPaths from "./GroupPaths";
+import { makeGroupPaths, type GroupPaths as GroupPathsSet } from "./GroupPaths";
 
-export const FunctionPaths = Schema.HashSetFromSelf(
-  FunctionPath.FunctionPath,
-).pipe(Schema.brand("@confect/cli/FunctionPaths"));
-export type FunctionPaths = typeof FunctionPaths.Type;
+export const FunctionPathsSchema = Schema.HashSet(FunctionPath.FunctionPath).pipe(
+  Schema.brand("@confect/cli/FunctionPaths"),
+);
+
+export type FunctionPaths = typeof FunctionPathsSchema.Type;
+
+const wrap = (set: HashSet.HashSet<FunctionPath.FunctionPath>): FunctionPaths =>
+  set as FunctionPaths;
 
 export const make = (spec: Spec.AnyWithProps): FunctionPaths =>
-  makeHelper(spec.groups, Option.none(), FunctionPaths.make(HashSet.empty()));
+  makeHelper(spec.groups, Option.none(), wrap(HashSet.empty()));
 
 const makeHelper = (
   groups: {
@@ -29,10 +33,10 @@ const makeHelper = (
       group.functions,
       acc,
       (acc_, _fn, functionName) =>
-        FunctionPaths.make(
+        wrap(
           HashSet.add(
             acc_,
-            FunctionPath.FunctionPath.make({
+            new FunctionPath.FunctionPath({
               groupPath,
               name: functionName,
             }),
@@ -45,11 +49,11 @@ const makeHelper = (
 
 export const groupPaths = (
   functionPaths: FunctionPaths,
-): GroupPaths.GroupPaths =>
+): GroupPathsSet =>
   pipe(
     functionPaths,
     HashSet.map(FunctionPath.groupPath),
-    GroupPaths.GroupPaths.make,
+    makeGroupPaths,
   );
 
 export const diff = (
@@ -58,31 +62,31 @@ export const diff = (
 ): {
   functionsAdded: FunctionPaths;
   functionsRemoved: FunctionPaths;
-  groupsRemoved: GroupPaths.GroupPaths;
-  groupsAdded: GroupPaths.GroupPaths;
-  groupsChanged: GroupPaths.GroupPaths;
+  groupsRemoved: GroupPathsSet;
+  groupsAdded: GroupPathsSet;
+  groupsChanged: GroupPathsSet;
 } => {
   const currentGroups = groupPaths(currentFunctions);
   const previousGroups = groupPaths(previousFunctions);
 
-  const groupsAdded = GroupPaths.GroupPaths.make(
+  const groupsAdded = makeGroupPaths(
     HashSet.difference(currentGroups, previousGroups),
   );
-  const groupsRemoved = GroupPaths.GroupPaths.make(
+  const groupsRemoved = makeGroupPaths(
     HashSet.difference(previousGroups, currentGroups),
   );
 
-  const functionsAdded = FunctionPaths.make(
+  const functionsAdded = wrap(
     HashSet.difference(currentFunctions, previousFunctions),
   );
-  const existingGroupsToWhichFunctionsWereAdded = GroupPaths.GroupPaths.make(
+  const existingGroupsToWhichFunctionsWereAdded = makeGroupPaths(
     HashSet.intersection(currentGroups, groupPaths(functionsAdded)),
   );
 
-  const functionsRemoved = FunctionPaths.make(
+  const functionsRemoved = wrap(
     HashSet.difference(previousFunctions, currentFunctions),
   );
-  const existingGroupsToWhichFunctionsWereRemoved = GroupPaths.GroupPaths.make(
+  const existingGroupsToWhichFunctionsWereRemoved = makeGroupPaths(
     HashSet.intersection(previousGroups, groupPaths(functionsRemoved)),
   );
 
@@ -90,7 +94,7 @@ export const diff = (
     existingGroupsToWhichFunctionsWereAdded,
     HashSet.union(existingGroupsToWhichFunctionsWereRemoved),
     HashSet.difference(HashSet.union(groupsAdded, groupsRemoved)),
-    GroupPaths.GroupPaths.make,
+    makeGroupPaths,
   );
 
   return {

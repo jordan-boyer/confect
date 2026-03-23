@@ -1,13 +1,13 @@
-import { Context, Ref } from "effect";
+import { Ref, ServiceMap } from "effect";
 import type * as RegistryItem from "./RegistryItem";
 
 export interface RegistryItems {
   readonly [key: string]: RegistryItem.AnyWithProps | RegistryItems;
 }
 
-export class Registry extends Context.Reference<Registry>()(
+export const Registry = ServiceMap.Reference<Ref.Ref<RegistryItems>>(
   "@confect/server/Registry",
   {
-    defaultValue: () => Ref.unsafeMake<RegistryItems>({}),
+    defaultValue: () => Ref.makeUnsafe<RegistryItems>({}),
   },
-) {}
+);

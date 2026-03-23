@@ -1,19 +1,20 @@
-import { Command } from "@effect/cli";
+import { NodeFileSystem } from "@effect/platform-node";
+import { Command } from "effect/unstable/cli";
 import { Layer } from "effect";
 import { codegen } from "./confect/codegen";
 import { dev } from "./confect/dev";
-import { ConfectDirectory } from "./services/ConfectDirectory";
-import { ConvexDirectory } from "./services/ConvexDirectory";
-import { ProjectRoot } from "./services/ProjectRoot";
+import { ConfectDirectoryLive } from "./services/ConfectDirectory";
+import { ConvexDirectoryLive } from "./services/ConvexDirectory";
+import { ProjectRootLive } from "./services/ProjectRoot";
+
+const CliLayer = ConfectDirectoryLive.pipe(
+  Layer.provideMerge(ConvexDirectoryLive),
+  Layer.provideMerge(ProjectRootLive),
+  Layer.provideMerge(NodeFileSystem.layer),
+);
 
 export const confect = Command.make("confect").pipe(
   Command.withDescription("Generate and sync Confect files with Convex"),
   Command.withSubcommands([codegen, dev]),
-  Command.provide(
-    Layer.mergeAll(
-      ConfectDirectory.Default,
-      ProjectRoot.Default,
-      ConvexDirectory.Default,
-    ),
-  ),
+  Command.provide(CliLayer),
 );

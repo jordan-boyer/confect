@@ -6,7 +6,7 @@ import type {
   VectorSearchQuery,
 } from "convex/server";
 import type { GenericId } from "convex/values";
-import { Context, Effect, Layer } from "effect";
+import { Effect, Layer, ServiceMap } from "effect";
 import type * as DataModel from "./DataModel";
 
 type ConvexVectorSearch<DataModel_ extends DataModel.AnyWithProps> =
@@ -33,14 +33,23 @@ export const make =
   ): Effect.Effect<Array<{ _id: GenericId<TableName>; _score: number }>> =>
     Effect.promise(() => vectorSearch(tableName, indexName, query));
 
-export const VectorSearch = <DataModel_ extends DataModel.AnyWithProps>() =>
-  Context.GenericTag<ReturnType<typeof make<DataModel_>>>(
-    "@confect/server/VectorSearch",
-  );
+export type VectorSearchId = "@confect/server/VectorSearch";
 
-export type VectorSearch<DataModel_ extends DataModel.AnyWithProps> =
-  ReturnType<typeof VectorSearch<DataModel_>>["Identifier"];
+const vectorSearchService = ServiceMap.Service<
+  VectorSearchId,
+  ReturnType<typeof make<DataModel.AnyWithProps>>
+>("@confect/server/VectorSearch");
+
+export const VectorSearch = <DataModel_ extends DataModel.AnyWithProps>() =>
+  vectorSearchService as unknown as ServiceMap.Service<
+    VectorSearchId,
+    ReturnType<typeof make<DataModel_>>
+  >;
+
+export type VectorSearch<
+  _DataModel_ extends DataModel.AnyWithProps = DataModel.AnyWithProps,
+> = VectorSearchId;
 
 export const layer = <DataModel_ extends DataModel.AnyWithProps>(
   vectorSearch: ConvexVectorSearch<DataModel_>,
-) => Layer.succeed(VectorSearch<DataModel_>(), make(vectorSearch));
+) => Layer.succeed(vectorSearchService)(make(vectorSearch));

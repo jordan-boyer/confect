@@ -1,6 +1,6 @@
 import { Spec } from "@confect/core";
-import { Command } from "@effect/cli";
-import { FileSystem, Path } from "@effect/platform";
+import { Command } from "effect/unstable/cli";
+import { FileSystem, Path } from "effect";
 import { Ansi, AnsiDoc } from "@effect/printer-ansi";
 import {
   Array,
@@ -21,7 +21,7 @@ import {
 } from "effect";
 import type { ReadonlyRecord } from "effect/Record";
 import * as esbuild from "esbuild";
-import type * as FunctionPath from "../FunctionPath";
+import * as FunctionPath from "../FunctionPath";
 import * as FunctionPaths from "../FunctionPaths";
 import * as GroupPath from "../GroupPath";
 import { logFailure, logPending, logSuccess } from "../log";
@@ -72,7 +72,7 @@ const logFileChangeIndented = (
   fullPath: string,
 ) =>
   Effect.gen(function* () {
-    const projectRoot = yield* ProjectRoot.get;
+    const projectRoot = yield* (yield* ProjectRoot).get;
     const path = yield* Path.Path;
 
     const prefix = projectRoot + path.sep;
@@ -170,7 +170,7 @@ const syncLoop = (
         const isDone = yield* Deferred.isDone(initialSyncDone);
         yield* Effect.when(
           logPending("Dependencies changed, reloading…"),
-          () => isDone,
+          Effect.succeed(isDone),
         );
         yield* Deferred.succeed(initialSyncDone, undefined);
 
@@ -181,32 +181,31 @@ const syncLoop = (
           yield* generateNodeRegisteredFunctions;
         }
 
-        const specResult: Option.Option<void> = yield* Effect.if(
-          pending.specDirty,
-          {
-            onTrue: () =>
-              loadSpec.pipe(
-                Effect.andThen(
-                  Effect.fn(function* (spec) {
-                    yield* Effect.logDebug("Spec loaded");
+        const specResult: Option.Option<void> = yield* (pending.specDirty
+          ? loadSpec.pipe(
+              Effect.andThen(
+                Effect.fn(function* (spec) {
+                  yield* Effect.logDebug("Spec loaded");
 
-                    const previous = yield* Ref.get(functionPathsRef);
+                  const previous = yield* Ref.get(functionPathsRef);
 
-                    const path = yield* Path.Path;
-                    const convexDirectory = yield* ConvexDirectory.get;
+                  const path = yield* Path.Path;
+                  const convexDirectory = yield* (yield* ConvexDirectory).get;
 
-                    const current = FunctionPaths.make(spec);
-                    const {
-                      functionsAdded,
-                      functionsRemoved,
-                      groupsRemoved,
-                      groupsAdded,
-                      groupsChanged,
-                    } = FunctionPaths.diff(previous, current);
+                  const current = FunctionPaths.make(spec);
+                  const {
+                    functionsAdded,
+                    functionsRemoved,
+                    groupsRemoved,
+                    groupsAdded,
+                    groupsChanged,
+                  } = FunctionPaths.diff(previous, current);
 
-                    // Removed groups
-                    yield* removeGroups(groupsRemoved);
-                    yield* Effect.forEach(groupsRemoved, (gp) =>
+                  // Removed groups
+                  yield* removeGroups(groupsRemoved);
+                  yield* pipe(
+                    groupsRemoved,
+                    Effect.forEach((gp) =>
                       Effect.gen(function* () {
                         const relativeModulePath =
                           yield* GroupPath.modulePath(gp);
@@ -215,20 +214,23 @@ const syncLoop = (
                           relativeModulePath,
                         );
                         yield* logFileChangeIndented("Removed", filePath);
-                        yield* Effect.forEach(
+                        yield* pipe(
                           Array.fromIterable(
                             HashSet.filter(functionsRemoved, (fp) =>
                               Equal.equals(fp.groupPath, gp),
                             ),
-                          ),
-                          logFunctionRemovedIndented,
+                          ) as ReadonlyArray<FunctionPath.FunctionPath>,
+                          Effect.forEach(logFunctionRemovedIndented),
                         );
                       }),
-                    );
+                    ),
+                  );
 
-                    // Added groups
-                    yield* writeGroups(spec, groupsAdded);
-                    yield* Effect.forEach(groupsAdded, (gp) =>
+                  // Added groups
+                  yield* writeGroups(spec, groupsAdded);
+                  yield* pipe(
+                    groupsAdded,
+                    Effect.forEach((gp) =>
                       Effect.gen(function* () {
                         const relativeModulePath =
                           yield* GroupPath.modulePath(gp);
@@ -237,20 +239,23 @@ const syncLoop = (
                           relativeModulePath,
                         );
                         yield* logFileChangeIndented("Added", filePath);
-                        yield* Effect.forEach(
+                        yield* pipe(
                           Array.fromIterable(
                             HashSet.filter(functionsAdded, (fp) =>
                               Equal.equals(fp.groupPath, gp),
                             ),
-                          ),
-                          logFunctionAddedIndented,
+                          ) as ReadonlyArray<FunctionPath.FunctionPath>,
+                          Effect.forEach(logFunctionAddedIndented),
                         );
                       }),
-                    );
+                    ),
+                  );
 
-                    // Changed groups
-                    yield* writeGroups(spec, groupsChanged);
-                    yield* Effect.forEach(groupsChanged, (gp) =>
+                  // Changed groups
+                  yield* writeGroups(spec, groupsChanged);
+                  yield* pipe(
+                    groupsChanged,
+                    Effect.forEach((gp) =>
                       Effect.gen(function* () {
                         const relativeModulePath =
                           yield* GroupPath.modulePath(gp);
@@ -259,49 +264,48 @@ const syncLoop = (
                           relativeModulePath,
                         );
                         yield* logFileChangeIndented("Modified", filePath);
-                        yield* Effect.forEach(
+                        yield* pipe(
                           Array.fromIterable(
                             HashSet.filter(functionsAdded, (fp) =>
                               Equal.equals(fp.groupPath, gp),
                             ),
-                          ),
-                          logFunctionAddedIndented,
+                          ) as ReadonlyArray<FunctionPath.FunctionPath>,
+                          Effect.forEach(logFunctionAddedIndented),
                         );
-                        yield* Effect.forEach(
+                        yield* pipe(
                           Array.fromIterable(
                             HashSet.filter(functionsRemoved, (fp) =>
                               Equal.equals(fp.groupPath, gp),
                             ),
-                          ),
-                          logFunctionRemovedIndented,
+                          ) as ReadonlyArray<FunctionPath.FunctionPath>,
+                          Effect.forEach(logFunctionRemovedIndented),
                         );
                       }),
-                    );
+                    ),
+                  );
 
-                    yield* Ref.set(functionPathsRef, current);
+                  yield* Ref.set(functionPathsRef, current);
 
-                    return Option.some(undefined);
-                  }),
-                ),
-                Effect.catchTag("SpecImportFailedError", () =>
-                  logFailure("Spec import failed").pipe(
-                    Effect.as(Option.none()),
-                  ),
-                ),
-                Effect.catchTag("SpecFileDoesNotExportSpecError", () =>
-                  logFailure(
-                    "Spec file does not default export a Convex spec",
-                  ).pipe(Effect.as(Option.none())),
-                ),
-                Effect.catchTag("NodeSpecFileDoesNotExportSpecError", () =>
-                  logFailure(
-                    "Node spec file does not default export a Node spec",
-                  ).pipe(Effect.as(Option.none())),
+                  return Option.some(undefined);
+                }),
+              ),
+              Effect.catchTag("SpecImportFailedError", () =>
+                logFailure("Spec import failed").pipe(
+                  Effect.as(Option.none()),
                 ),
               ),
-            onFalse: () => Effect.succeed(Option.some(undefined)),
-          },
-        );
+              Effect.catchTag("SpecFileDoesNotExportSpecError", () =>
+                logFailure(
+                  "Spec file does not default export a Convex spec",
+                ).pipe(Effect.as(Option.none())),
+              ),
+              Effect.catchTag("NodeSpecFileDoesNotExportSpecError", () =>
+                logFailure(
+                  "Node spec file does not default export a Node spec",
+                ).pipe(Effect.as(Option.none())),
+              ),
+            )
+          : Effect.succeed(Option.some(undefined)));
 
         const dirtyOptionalFiles = [
           ...(pending.httpDirty
@@ -315,7 +319,7 @@ const syncLoop = (
             : []),
         ];
 
-        yield* Array.isNonEmptyReadonlyArray(dirtyOptionalFiles)
+        yield* dirtyOptionalFiles.length > 0
           ? Effect.all(dirtyOptionalFiles, { concurrency: "unbounded" })
           : Effect.void;
 
@@ -330,7 +334,7 @@ const syncLoop = (
 const loadSpec = Effect.gen(function* () {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
-  const confectDirectory = yield* ConfectDirectory.get;
+  const confectDirectory = yield* (yield* ConfectDirectory).get;
   const specPath = yield* getSpecPath;
   const specModule = yield* bundleAndImport(specPath).pipe(
     Effect.mapError((error) => new SpecImportFailedError({ error })),
@@ -338,7 +342,7 @@ const loadSpec = Effect.gen(function* () {
   const spec = specModule.default;
 
   if (!Spec.isConvexSpec(spec)) {
-    return yield* new SpecFileDoesNotExportSpecError();
+    return yield* new SpecFileDoesNotExportSpecError({});
   }
 
   const nodeImplPath = path.join(confectDirectory, "nodeImpl.ts");
@@ -354,14 +358,14 @@ const loadSpec = Effect.gen(function* () {
 
 const getSpecPath = Effect.gen(function* () {
   const path = yield* Path.Path;
-  const confectDirectory = yield* ConfectDirectory.get;
+  const confectDirectory = yield* (yield* ConfectDirectory).get;
 
   return path.join(confectDirectory, "spec.ts");
 });
 
 const getNodeSpecPath = Effect.gen(function* () {
   const path = yield* Path.Path;
-  const confectDirectory = yield* ConfectDirectory.get;
+  const confectDirectory = yield* (yield* ConfectDirectory).get;
 
   return path.join(confectDirectory, "nodeSpec.ts");
 });
@@ -380,7 +384,7 @@ const loadNodeSpec = Effect.gen(function* () {
   const nodeSpec = nodeSpecModule.default;
 
   if (!Spec.isNodeSpec(nodeSpec)) {
-    return yield* new NodeSpecFileDoesNotExportSpecError();
+    return yield* new NodeSpecFileDoesNotExportSpecError({});
   }
 
   return Option.some(nodeSpec);
@@ -428,35 +432,40 @@ const esbuildOptions = (entryPoint: string) => ({
 });
 
 const createSpecWatcher = (entryPoint: string) =>
-  Stream.asyncPush<void>(
-    (emit) =>
-      Effect.acquireRelease(
-        Effect.promise(async () => {
-          const opts = esbuildOptions(entryPoint);
-          const plugin = opts.plugins[0];
-          const originalSetup = plugin!.setup!;
-          (plugin as { setup: (build: esbuild.PluginBuild) => void }).setup = (
-            build,
-          ) => {
-            (build as { _emit?: (v: void) => void })._emit = () =>
-              emit.single();
-            return originalSetup(build);
-          };
+  Stream.scoped(
+    Stream.unwrap(
+      Effect.gen(function* () {
+        const queue = yield* Queue.unbounded<void>();
+        yield* Effect.acquireRelease(
+          Effect.promise(async () => {
+            const opts = esbuildOptions(entryPoint);
+            const plugin = opts.plugins[0];
+            const originalSetup = plugin!.setup!;
+            (plugin as { setup: (build: esbuild.PluginBuild) => void }).setup = (
+              build,
+            ) => {
+              (build as { _emit?: (v: void) => void })._emit = () => {
+                void Effect.runPromise(Queue.offer(queue, undefined));
+              };
+              return originalSetup(build);
+            };
 
-          const ctx = await esbuild.context({
-            ...opts,
-            plugins: [plugin],
-          });
+            const ctx = await esbuild.context({
+              ...opts,
+              plugins: [plugin],
+            });
 
-          await ctx.watch();
-          return ctx;
-        }),
-        (ctx) =>
-          Effect.promise(() => ctx.dispose()).pipe(
-            Effect.tap(() => Effect.logDebug("esbuild watcher disposed")),
-          ),
-      ),
-    { bufferSize: 1, strategy: "sliding" },
+            await ctx.watch();
+            return ctx;
+          }),
+          (ctx) =>
+            Effect.promise(() => ctx.dispose()).pipe(
+              Effect.tap(() => Effect.logDebug("esbuild watcher disposed")),
+            ),
+        );
+        return Stream.fromQueue(queue);
+      }),
+    ),
   );
 
 type SpecWatcherEvent = "change" | "restart";
@@ -517,7 +526,11 @@ const formatBuildError = (
     Array.findFirstIndex(lines, (l) => pipe(l, String.trim, String.isNonEmpty)),
     Option.match({
       onNone: () => lines,
-      onSome: (index) => Array.modify(lines, index, () => redErrorText),
+      onSome: (index) =>
+        pipe(
+          Array.modify(lines, index, () => redErrorText),
+          Option.getOrElse(() => lines),
+        ),
     }),
   );
   return pipe(replaced, Array.join("\n"));
@@ -534,17 +547,17 @@ const formatBuildErrors = (
     String.trimEnd,
   );
 
-export class SpecFileDoesNotExportSpecError extends Schema.TaggedError<SpecFileDoesNotExportSpecError>()(
+export class SpecFileDoesNotExportSpecError extends Schema.TaggedErrorClass<SpecFileDoesNotExportSpecError>()(
   "SpecFileDoesNotExportSpecError",
   {},
 ) {}
 
-export class NodeSpecFileDoesNotExportSpecError extends Schema.TaggedError<NodeSpecFileDoesNotExportSpecError>()(
+export class NodeSpecFileDoesNotExportSpecError extends Schema.TaggedErrorClass<NodeSpecFileDoesNotExportSpecError>()(
   "NodeSpecFileDoesNotExportSpecError",
   {},
 ) {}
 
-export class SpecImportFailedError extends Schema.TaggedError<SpecImportFailedError>()(
+export class SpecImportFailedError extends Schema.TaggedErrorClass<SpecImportFailedError>()(
   "SpecImportFailedError",
   {
     error: Schema.Unknown,
@@ -568,7 +581,7 @@ const syncOptionalFile = (generate: typeof generateHttp, convexFile: string) =>
           Effect.gen(function* () {
             const fs = yield* FileSystem.FileSystem;
             const path = yield* Path.Path;
-            const convexDirectory = yield* ConvexDirectory.get;
+            const convexDirectory = yield* (yield* ConvexDirectory).get;
             const convexFilePath = path.join(convexDirectory, convexFile);
 
             if (yield* fs.exists(convexFilePath)) {
@@ -596,11 +609,11 @@ const confectDirectoryWatcher = (
   Effect.gen(function* () {
     const fs = yield* FileSystem.FileSystem;
     const path = yield* Path.Path;
-    const confectDirectory = yield* ConfectDirectory.get;
+    const confectDirectory = yield* (yield* ConfectDirectory).get;
 
     yield* pipe(
       fs.watch(confectDirectory),
-      Stream.runForEach((event) => {
+      Stream.runForEach((event: { readonly path: string }) => {
         const basename = path.basename(event.path);
         const pendingKey = optionalConfectFiles[basename];
 

@@ -3,17 +3,16 @@ import type {
   DocumentByName,
   Expand,
   GenericDatabaseWriter,
-  WithoutSystemFields,
+  WithoutSystemFields as ConvexWithoutSystemFields,
 } from "convex/server";
 import type { GenericId } from "convex/values";
-import { Context, Effect, Layer, pipe, Record } from "effect";
+import { Effect, Layer, pipe, Record, ServiceMap } from "effect";
 import type * as DatabaseSchema from "./DatabaseSchema";
 import type * as DataModel from "./DataModel";
 import type { DocumentByName as DocumentByName_ } from "./DataModel";
 import * as Document from "./Document";
 import * as QueryInitializer from "./QueryInitializer";
 import type * as Table from "./Table";
-import type * as TableInfo from "./TableInfo";
 
 export const make = <DatabaseSchema_ extends DatabaseSchema.AnyWithProps>(
   databaseSchema: DatabaseSchema_,
@@ -28,10 +27,6 @@ export const make = <DatabaseSchema_ extends DatabaseSchema.AnyWithProps>(
     tableName: TableName,
   ) => {
     const tableDef = tables[tableName]!;
-    const tableSchema = tableDef.Fields as TableInfo.TableSchema<
-      DataModel.TableInfoWithName_<DataModel_, TableName>
-    >;
-
     const insert = (
       document: Document.WithoutSystemFields<
         DocumentByName_<DataModel_, TableName>
@@ -47,7 +42,7 @@ export const make = <DatabaseSchema_ extends DatabaseSchema.AnyWithProps>(
         const id = yield* Effect.promise(() =>
           convexDatabaseWriter.insert(
             tableName,
-            encodedDocument as WithoutSystemFields<
+            encodedDocument as ConvexWithoutSystemFields<
               DocumentByName<DataModel.ToConvex<DataModel_>, TableName>
             >,
           ),
@@ -59,7 +54,7 @@ export const make = <DatabaseSchema_ extends DatabaseSchema.AnyWithProps>(
     const patch = (
       id: GenericId<TableName>,
       patchedValues: Partial<
-        WithoutSystemFields<DocumentByName_<DataModel_, TableName>>
+        Document.WithoutSystemFields<DocumentByName_<DataModel_, TableName>>
       >,
     ) =>
       Effect.gen(function* () {
@@ -76,7 +71,7 @@ export const make = <DatabaseSchema_ extends DatabaseSchema.AnyWithProps>(
               ? Record.remove(acc, key)
               : Record.set(acc, key, value),
           ),
-          Document.encode(tableName, tableSchema),
+          Document.encode(tableName, tableDef.Fields),
         );
 
         yield* Effect.promise(() =>
@@ -94,13 +89,13 @@ export const make = <DatabaseSchema_ extends DatabaseSchema.AnyWithProps>(
 
     const replace = (
       id: GenericId<TableName>,
-      value: WithoutSystemFields<DocumentByName_<DataModel_, TableName>>,
+      value: Document.WithoutSystemFields<DocumentByName_<DataModel_, TableName>>,
     ) =>
       Effect.gen(function* () {
         const updatedEncodedDoc = yield* Document.encode(
           value,
           tableName,
-          tableSchema,
+          tableDef.Fields,
         );
 
         yield* Effect.promise(() =>
@@ -132,16 +127,24 @@ export const make = <DatabaseSchema_ extends DatabaseSchema.AnyWithProps>(
   };
 };
 
+export type DatabaseWriterId = "@confect/server/DatabaseWriter";
+
+const databaseWriterService = ServiceMap.Service<
+  DatabaseWriterId,
+  ReturnType<typeof make<DatabaseSchema.AnyWithProps>>
+>("@confect/server/DatabaseWriter");
+
 export const DatabaseWriter = <
   DatabaseSchema_ extends DatabaseSchema.AnyWithProps,
 >() =>
-  Context.GenericTag<ReturnType<typeof make<DatabaseSchema_>>>(
-    "@confect/server/DatabaseWriter",
-  );
+  databaseWriterService as unknown as ServiceMap.Service<
+    DatabaseWriterId,
+    ReturnType<typeof make<DatabaseSchema_>>
+  >;
 
 export type DatabaseWriter<
-  DatabaseSchema_ extends DatabaseSchema.AnyWithProps,
-> = ReturnType<typeof DatabaseWriter<DatabaseSchema_>>["Identifier"];
+  _DatabaseSchema_ extends DatabaseSchema.AnyWithProps = DatabaseSchema.AnyWithProps,
+> = DatabaseWriterId;
 
 export const layer = <DatabaseSchema_ extends DatabaseSchema.AnyWithProps>(
   databaseSchema: DatabaseSchema_,
@@ -149,7 +152,6 @@ export const layer = <DatabaseSchema_ extends DatabaseSchema.AnyWithProps>(
     DataModel.ToConvex<DataModel.FromSchema<DatabaseSchema_>>
   >,
 ) =>
-  Layer.succeed(
-    DatabaseWriter<DatabaseSchema_>(),
+  Layer.succeed(databaseWriterService)(
     make(databaseSchema, convexDatabaseWriter),
   );

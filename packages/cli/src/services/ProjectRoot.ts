@@ -1,21 +1,30 @@
-import { FileSystem, Path } from "@effect/platform";
 import { NodeFileSystem } from "@effect/platform-node";
-import { Array, Effect, Option, Ref, Schema } from "effect";
+import {
+  Array,
+  Effect,
+  FileSystem,
+  Layer,
+  Option,
+  Path,
+  Ref,
+  Schema,
+  ServiceMap,
+} from "effect";
 
-export class ProjectRoot extends Effect.Service<ProjectRoot>()(
-  "@confect/cli/services/ProjectRoot",
+export class ProjectRoot extends ServiceMap.Service<
+  ProjectRoot,
   {
-    effect: Effect.gen(function* () {
-      const projectRoot = yield* findProjectRoot;
+    readonly get: Effect.Effect<string, ProjectRootNotFoundError, never>;
+  }
+>()("@confect/cli/services/ProjectRoot") {}
 
-      const ref = yield* Ref.make<string>(projectRoot);
-
-      return { get: Ref.get(ref) } as const;
-    }),
-    dependencies: [NodeFileSystem.layer],
-    accessors: true,
-  },
-) {}
+export const ProjectRootLive = Layer.effect(ProjectRoot)(
+  Effect.gen(function* () {
+    const projectRoot = yield* findProjectRoot;
+    const ref = yield* Ref.make(projectRoot);
+    return { get: Ref.get(ref) };
+  }),
+).pipe(Layer.provide(NodeFileSystem.layer));
 
 export const findProjectRoot = Effect.gen(function* () {
   const fs = yield* FileSystem.FileSystem;
@@ -35,16 +44,16 @@ export const findProjectRoot = Effect.gen(function* () {
   );
 
   return yield* Option.match(projectRoot, {
-    onNone: () => Effect.fail(new ProjectRootNotFoundError()),
+    onNone: () => Effect.fail(new ProjectRootNotFoundError({})),
     onSome: Effect.succeed,
   });
 });
 
-export class ProjectRootNotFoundError extends Schema.TaggedError<ProjectRootNotFoundError>()(
+export class ProjectRootNotFoundError extends Schema.TaggedErrorClass<ProjectRootNotFoundError>()(
   "ProjectRootNotFoundError",
   {},
 ) {
-  override get message(): string {
+  get message(): string {
     return "Could not find project root (no 'package.json' found)";
   }
 }

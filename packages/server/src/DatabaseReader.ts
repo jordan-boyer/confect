@@ -1,5 +1,5 @@
 import type { GenericDatabaseReader } from "convex/server";
-import { Array, Context, Layer } from "effect";
+import { Array, Layer, ServiceMap } from "effect";
 import type { BaseDatabaseReader } from "@confect/core/Types";
 import * as DatabaseSchema from "./DatabaseSchema";
 import type * as DataModel from "./DataModel";
@@ -52,16 +52,26 @@ export const make = <DatabaseSchema_ extends DatabaseSchema.AnyWithProps>(
   };
 };
 
+/** String literal used in Effect `R` (must match `yield*` / ServiceMap). */
+export type DatabaseReaderId = "@confect/server/DatabaseReader";
+
+const databaseReaderService = ServiceMap.Service<
+  DatabaseReaderId,
+  ReturnType<typeof make<DatabaseSchema.AnyWithProps>>
+>("@confect/server/DatabaseReader");
+
 export const DatabaseReader = <
   DatabaseSchema_ extends DatabaseSchema.AnyWithProps,
 >() =>
-  Context.GenericTag<ReturnType<typeof make<DatabaseSchema_>>>(
-    "@confect/server/DatabaseReader",
-  );
+  databaseReaderService as unknown as ServiceMap.Service<
+    DatabaseReaderId,
+    ReturnType<typeof make<DatabaseSchema_>>
+  >;
 
+/** Effect context requirement for `yield*` (identifier only; matches QueryRunner pattern). */
 export type DatabaseReader<
-  DatabaseSchema_ extends DatabaseSchema.AnyWithProps,
-> = ReturnType<typeof DatabaseReader<DatabaseSchema_>>["Identifier"];
+  _DatabaseSchema_ extends DatabaseSchema.AnyWithProps = DatabaseSchema.AnyWithProps,
+> = DatabaseReaderId;
 
 export const layer = <DatabaseSchema_ extends DatabaseSchema.AnyWithProps>(
   databaseSchema: DatabaseSchema_,
@@ -69,7 +79,6 @@ export const layer = <DatabaseSchema_ extends DatabaseSchema.AnyWithProps>(
     DataModel.ToConvex<DataModel.FromSchema<DatabaseSchema_>>
   >,
 ) =>
-  Layer.succeed(
-    DatabaseReader<DatabaseSchema_>(),
+  Layer.succeed(databaseReaderService)(
     make(databaseSchema, convexDatabaseReader),
   );

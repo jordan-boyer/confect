@@ -16,7 +16,7 @@ import type {
   SearchIndexes,
 } from "convex/server";
 import type { GenericId } from "convex/values";
-import { Array, Effect, Either, pipe, Schema } from "effect";
+import { Array, Effect, pipe, Schema } from "effect";
 import type {
   BaseDatabaseReader,
   IndexFieldTypesForEq,
@@ -138,15 +138,16 @@ export const make = <
           )
           .unique(),
       ),
-      Effect.andThen(
-        Either.fromNullable(
-          () =>
-            new GetByIndexFailure({
-              tableName,
-              indexName: indexName as string,
-              indexFieldValues: indexFieldValues as string[],
-            }),
-        ),
+      Effect.andThen((doc) =>
+        doc == null
+          ? Effect.fail(
+              new GetByIndexFailure({
+                tableName,
+                indexName: indexName as string,
+                indexFieldValues: indexFieldValues as string[],
+              }),
+            )
+          : Effect.succeed(doc),
       ),
       Effect.andThen(Document.decode(tableName, table.Fields)),
     );
@@ -235,20 +236,18 @@ export const make = <
       applyOrder,
     );
 
-    return OrderedQuery.make<
-      DataModel.TableInfoWithName_<DataModel_, TableName>,
-      TableName
-    >(orderedQuery, tableName, table.Fields);
+    return OrderedQuery.make(
+      orderedQuery,
+      tableName,
+      table.Fields,
+    );
   };
 
   const search: QueryInitializerFunction<"search"> = (
     indexName,
     searchFilter,
   ) =>
-    OrderedQuery.make<
-      DataModel.TableInfoWithName_<DataModel_, TableName>,
-      TableName
-    >(
+    OrderedQuery.make(
       convexDatabaseReader
         .query(tableName)
         .withSearchIndex(indexName, searchFilter),
@@ -274,20 +273,22 @@ export const getById =
   (id: GenericId<TableName>) =>
     pipe(
       Effect.promise(() => convexDatabaseReader.get(id)),
-      Effect.andThen(
-        Either.fromNullable(() => new GetByIdFailure({ tableName, id })),
+      Effect.andThen((doc) =>
+        doc == null
+          ? Effect.fail(new GetByIdFailure({ tableName, id }))
+          : Effect.succeed(doc),
       ),
       Effect.andThen(Document.decode(tableName, table.Fields)),
     );
 
-export class GetByIdFailure extends Schema.TaggedError<GetByIdFailure>()(
+export class GetByIdFailure extends Schema.TaggedErrorClass<GetByIdFailure>()(
   "GetByIdFailure",
   {
     id: Schema.String,
     tableName: Schema.String,
   },
 ) {
-  override get message(): string {
+  get message(): string {
     return Document.documentErrorMessage({
       id: this.id,
       tableName: this.tableName,
@@ -296,7 +297,7 @@ export class GetByIdFailure extends Schema.TaggedError<GetByIdFailure>()(
   }
 }
 
-export class GetByIndexFailure extends Schema.TaggedError<GetByIndexFailure>()(
+export class GetByIndexFailure extends Schema.TaggedErrorClass<GetByIndexFailure>()(
   "GetByIndexFailure",
   {
     tableName: Schema.String,
@@ -304,7 +305,7 @@ export class GetByIndexFailure extends Schema.TaggedError<GetByIndexFailure>()(
     indexFieldValues: Schema.Array(Schema.String),
   },
 ) {
-  override get message(): string {
+  get message(): string {
     return `No documents found in table '${this.tableName}' with index '${this.indexName}' and field values '${this.indexFieldValues}'`;
   }
 }

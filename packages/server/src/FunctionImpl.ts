@@ -1,7 +1,7 @@
 import type * as FunctionSpec from "@confect/core/FunctionSpec";
 import type * as GroupPath from "@confect/core/GroupPath";
 import type * as GroupSpec from "@confect/core/GroupSpec";
-import { Array, Context, Effect, Layer, Ref, String } from "effect";
+import { Array, Effect, Layer, Ref, ServiceMap, String } from "effect";
 import type * as Api from "./Api";
 import type * as Handler from "./Handler";
 import { setNestedProperty } from "./internal/utils";
@@ -26,7 +26,7 @@ export const FunctionImpl = <
   groupPath: GroupPath_;
   functionName: FunctionName;
 }) =>
-  Context.GenericTag<FunctionImpl<GroupPath_, FunctionName>>(
+  ServiceMap.Service<FunctionImpl<GroupPath_, FunctionName>>(
     `@confect/server/FunctionImpl/${groupPath}/${functionName}`,
   );
 
@@ -63,6 +63,7 @@ export const make = <
       groupPath,
       functionName,
     }),
+  )(
     Effect.gen(function* () {
       const registry = yield* Registry.Registry;
 

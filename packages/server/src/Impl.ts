@@ -1,4 +1,4 @@
-import { Context, Effect, Layer, Predicate } from "effect";
+import { Effect, Layer, Predicate, ServiceMap } from "effect";
 import type * as Api from "./Api";
 import type { Groups as ApiGroups } from "./Api";
 import type * as GroupImpl from "./GroupImpl";
@@ -25,11 +25,19 @@ export interface AnyWithProps extends Impl<
   FinalizationStatus
 > {}
 
+export const implService = ServiceMap.Service<
+  "@confect/server/Impl",
+  AnyWithProps
+>("@confect/server/Impl");
+
 export const Impl = <
   Api_ extends Api.AnyWithProps,
   FinalizationStatus_ extends FinalizationStatus,
 >() =>
-  Context.GenericTag<Impl<Api_, FinalizationStatus_>>(`@confect/server/Impl`);
+  implService as unknown as ServiceMap.Service<
+    "@confect/server/Impl",
+    Impl<Api_, FinalizationStatus_>
+  >;
 
 export const make = <Api_ extends Api.AnyWithProps>(
   api: Api_,
@@ -38,22 +46,31 @@ export const make = <Api_ extends Api.AnyWithProps>(
   never,
   GroupImpl.FromGroups<ApiGroups<Api_>>
 > =>
-  Layer.effect(
-    Impl<Api_, "Unfinalized">(),
+  Layer.effect(Impl<Api_, "Unfinalized">())(
     Effect.succeed({
       [TypeId]: TypeId,
       api,
       finalizationStatus: "Unfinalized" as const,
-    }),
-  );
+    } as Impl<Api_, "Unfinalized">),
+  ) as unknown as Layer.Layer<
+    Impl<Api_, "Unfinalized">,
+    never,
+    GroupImpl.FromGroups<ApiGroups<Api_>>
+  >;
 
 export const finalize = <Api_ extends Api.AnyWithProps>(
   impl: Layer.Layer<Impl<Api_, "Unfinalized">>,
 ): Layer.Layer<Impl<Api_, "Finalized">> =>
-  Layer.map(impl, (context) =>
-    Context.make(Impl<Api_, "Finalized">(), {
-      [TypeId]: TypeId,
-      api: Context.get(context, Impl<Api_, "Unfinalized">()).api,
-      finalizationStatus: "Finalized",
+  impl.pipe(
+    Layer.flatMap((services) => {
+      const prev = ServiceMap.get(services, implService as never) as Impl<
+        Api_,
+        "Unfinalized"
+      >;
+      return Layer.succeed(implService)({
+        [TypeId]: TypeId,
+        api: prev.api,
+        finalizationStatus: "Finalized",
+      } as Impl<Api_, "Finalized">);
     }),
-  );
+  ) as unknown as Layer.Layer<Impl<Api_, "Finalized">>;

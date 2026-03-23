@@ -5,16 +5,16 @@ import { Schema } from "effect";
 export const Notes = Table.make(
   "notes",
   Schema.Struct({
-    userId: Schema.optional(GenericId.GenericId("users")),
-    text: Schema.String.pipe(Schema.maxLength(100)),
-    tag: Schema.optional(Schema.String),
-    author: Schema.optional(
+    userId: Schema.optionalKey(GenericId.GenericId("users")),
+    text: Schema.String.check(Schema.isMaxLength(100)),
+    tag: Schema.optionalKey(Schema.String),
+    author: Schema.optionalKey(
       Schema.Struct({
-        role: Schema.Literal("admin", "user"),
+        role: Schema.Literals(["admin", "user"]),
         name: Schema.String,
       }),
     ),
-    embedding: Schema.optional(Schema.Array(Schema.Number)),
+    embedding: Schema.optionalKey(Schema.Array(Schema.Number)),
   }),
 )
   .index("by_text", ["text"])

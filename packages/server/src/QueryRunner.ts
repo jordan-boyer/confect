@@ -1,43 +1,47 @@
 import * as Ref from "@confect/core/Ref";
 import { type GenericQueryCtx } from "convex/server";
-import type { ParseResult } from "effect";
-import { Context, Effect, Layer, Match, Schema } from "effect";
+import { Effect, Layer, Match, Schema, ServiceMap } from "effect";
+import type { SchemaError } from "effect/Schema";
 
 const make =
   (runQuery: GenericQueryCtx<any>["runQuery"]) =>
   <Query extends Ref.AnyQuery>(
     query: Query,
     args: Ref.Args<Query>,
-  ): Effect.Effect<Ref.Returns<Query>, ParseResult.ParseError> =>
+  ): Effect.Effect<Ref.Returns<Query>, SchemaError, never> =>
     Effect.gen(function* () {
       const functionSpec = Ref.getFunctionSpec(query);
       const functionName = Ref.getConvexFunctionName(query);
 
-      return yield* Match.value(functionSpec.functionProvenance).pipe(
+      return yield* (Match.value(functionSpec.functionProvenance).pipe(
         Match.tag("Confect", (confectFunctionSpec) =>
           Effect.gen(function* () {
-            const encodedArgs = yield* Schema.encode(confectFunctionSpec.args)(
-              args,
-            );
+            const encodedArgs = yield* Schema.encodeUnknownEffect(
+              confectFunctionSpec.args,
+            )(args);
             const encodedReturns = yield* Effect.promise(() =>
               runQuery(functionName as any, encodedArgs),
             );
-            return yield* Schema.decode(confectFunctionSpec.returns)(
-              encodedReturns,
-            );
+            return yield* Schema.decodeUnknownEffect(
+              confectFunctionSpec.returns,
+            )(encodedReturns);
           }),
         ),
         Match.tag("Convex", () =>
           Effect.promise(() => runQuery(functionName as any, args as any)),
         ),
         Match.exhaustive,
-      );
+      ) as Effect.Effect<Ref.Returns<Query>, SchemaError, never>);
     });
 
-export const QueryRunner = Context.GenericTag<ReturnType<typeof make>>(
+const queryRunnerService = ServiceMap.Service<
   "@confect/server/QueryRunner",
-);
-export type QueryRunner = typeof QueryRunner.Identifier;
+  ReturnType<typeof make>
+>("@confect/server/QueryRunner");
+
+export const QueryRunner = queryRunnerService;
+
+export type QueryRunner = ServiceMap.Service.Identifier<typeof queryRunnerService>;
 
 export const layer = (runQuery: GenericQueryCtx<any>["runQuery"]) =>
-  Layer.succeed(QueryRunner, make(runQuery));
+  Layer.succeed(queryRunnerService)(make(runQuery));

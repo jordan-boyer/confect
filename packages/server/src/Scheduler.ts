@@ -3,7 +3,7 @@ import type {
   SchedulableFunctionReference,
   Scheduler as ConvexScheduler,
 } from "convex/server";
-import { Context, DateTime, Duration, Effect, Layer } from "effect";
+import { DateTime, Duration, Effect, Layer, ServiceMap } from "effect";
 
 const make = (scheduler: ConvexScheduler) => ({
   runAfter: <FuncRef extends SchedulableFunctionReference>(
@@ -30,10 +30,14 @@ const make = (scheduler: ConvexScheduler) => ({
   },
 });
 
-export const Scheduler = Context.GenericTag<ReturnType<typeof make>>(
+const schedulerService = ServiceMap.Service<
   "@confect/server/Scheduler",
-);
-export type Scheduler = typeof Scheduler.Identifier;
+  ReturnType<typeof make>
+>("@confect/server/Scheduler");
+
+export const Scheduler = schedulerService;
+
+export type Scheduler = ServiceMap.Service.Identifier<typeof schedulerService>;
 
 export const layer = (scheduler: ConvexScheduler) =>
-  Layer.succeed(Scheduler, make(scheduler));
+  Layer.succeed(schedulerService)(make(scheduler));

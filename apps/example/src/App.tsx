@@ -1,8 +1,9 @@
 import { useAction, useMutation, useQuery } from "@confect/react";
 import type { WorkId } from "@convex-dev/workpool";
-import { FetchHttpClient, HttpApiClient } from "@effect/platform";
 import { ConvexProvider, ConvexReactClient } from "convex/react";
 import { Array, Effect, Exit } from "effect";
+import * as FetchHttpClient from "effect/unstable/http/FetchHttpClient";
+import * as HttpApiClient from "effect/unstable/httpapi/HttpApiClient";
 import { useEffect, useState } from "react";
 import refs from "../confect/_generated/refs";
 import { Api } from "../confect/http/path-prefix";
@@ -206,32 +207,32 @@ const NoteList = () => {
   );
 };
 
-const ApiClient = HttpApiClient.make(Api, {
+const getFirst = HttpApiClient.make(Api, {
   baseUrl: import.meta.env.VITE_CONVEX_URL.replace(
     "convex.cloud",
     "convex.site",
   ),
-});
-
-const getFirst = ApiClient.pipe(
-  Effect.andThen((client) => client.notes.getFirst()),
+}).pipe(
+  Effect.flatMap((client) => client.notes.getFirst()),
   Effect.scoped,
   Effect.provide(FetchHttpClient.layer),
 );
 
 const HttpEndpoints = () => {
-  const [getResponse, setGetResponse] = useState<Exit.Exit<any, any> | null>(
-    null,
-  );
+  const [getResponse, setGetResponse] = useState<Exit.Exit<
+    unknown,
+    unknown
+  > | null>(null);
 
   return (
     <div>
       <button
         type="button"
         onClick={() =>
-          getFirst
-            .pipe(Effect.runPromiseExit)
-            .then((exit) => setGetResponse(exit))
+          void Effect.runPromiseExit(
+            // @ts-expect-error - Effect.runPromiseExit expects a never-typed effect
+            getFirst,
+          ).then((exit) => setGetResponse(exit))
         }
       >
         HTTP GET /path-prefix/get-first

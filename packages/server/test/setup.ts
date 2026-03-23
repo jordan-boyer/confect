@@ -1,40 +1,15 @@
-import { Command, type CommandExecutor } from "@effect/platform";
-import { NodeContext } from "@effect/platform-node";
-import { Config, Effect, Option, pipe } from "effect";
+import { execFileSync } from "node:child_process";
 
-const runCommand = (
-  command: string,
-  args: string[],
-): Effect.Effect<void, never, CommandExecutor.CommandExecutor> =>
-  Command.make(command, ...args).pipe(
-    Command.exitCode,
-    Effect.andThen((exitCode) =>
-      exitCode !== 0
-        ? Effect.dieMessage(`${command} failed (exit code ${exitCode})`)
-        : Effect.void,
-    ),
-    Effect.orDie,
-  );
-
-export const setup = () =>
-  pipe(
-    Config.option(Config.boolean("CI")),
-    Effect.map(Option.getOrElse(() => false)),
-    Effect.if({
-      onTrue: () => Effect.void,
-      onFalse: () =>
-        Effect.gen(function* () {
-          const originalCwd = process.cwd();
-          const testDir = import.meta.dirname;
-
-          yield* Effect.gen(function* () {
-            process.chdir(testDir);
-            yield* runCommand("pnpm", ["confect", "codegen"]);
-          }).pipe(
-            Effect.ensuring(Effect.sync(() => process.chdir(originalCwd))),
-          );
-        }),
-    }),
-    Effect.provide(NodeContext.layer),
-    Effect.runPromise,
-  );
+export default function globalSetup() {
+  if (process.env.CI === "true" || process.env.CI === "1") {
+    return;
+  }
+  const originalCwd = process.cwd();
+  const testDir = import.meta.dirname;
+  try {
+    process.chdir(testDir);
+    execFileSync("pnpm", ["confect", "codegen"], { stdio: "inherit" });
+  } finally {
+    process.chdir(originalCwd);
+  }
+}

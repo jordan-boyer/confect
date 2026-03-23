@@ -1,5 +1,5 @@
-import type { Options as CodeBlockWriterOptions } from "code-block-writer";
 import CodeBlockWriter_ from "code-block-writer";
+import type { Options as CodeBlockWriterOptions } from "code-block-writer";
 import { Array, Effect } from "effect";
 import type * as GroupPath from "./GroupPath";
 
@@ -386,11 +386,12 @@ class CodeBlockWriter {
   indent<E = never, R = never>(
     eff: Effect.Effect<void, E, R>,
   ): Effect.Effect<void, E, R> {
-    return Effect.gen(this, function* () {
-      const indentationLevel = this.writer.getIndentationLevel();
-      this.writer.setIndentationLevel(indentationLevel + 1);
+    const writer = this.writer;
+    return Effect.gen(function* () {
+      const indentationLevel = writer.getIndentationLevel();
+      writer.setIndentationLevel(indentationLevel + 1);
       yield* eff;
-      this.writer.setIndentationLevel(indentationLevel);
+      writer.setIndentationLevel(indentationLevel);
     });
   }
 

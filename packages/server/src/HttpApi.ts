@@ -1,11 +1,7 @@
-import {
-  type HttpApi,
-  HttpApiBuilder,
-  HttpApiScalar,
-  type HttpApp,
-  type HttpRouter,
-  HttpServer,
-} from "@effect/platform";
+import type * as HttpApiDef from "effect/unstable/httpapi/HttpApi";
+import * as HttpApiScalar from "effect/unstable/httpapi/HttpApiScalar";
+import * as HttpRouter from "effect/unstable/http/HttpRouter";
+import type { HttpMiddleware } from "effect/unstable/http/HttpMiddleware";
 import {
   type HttpRouter as ConvexHttpRouter,
   type GenericActionCtx,
@@ -15,7 +11,7 @@ import {
   ROUTABLE_HTTP_METHODS,
   type RouteSpecWithPathPrefix,
 } from "convex/server";
-import { Array, Layer, pipe, Record } from "effect";
+import { Array, ConfigProvider, Layer, Record, pipe } from "effect";
 import * as ActionCtx from "./ActionCtx";
 import * as ActionRunner from "./ActionRunner";
 import * as Auth from "./Auth";
@@ -25,34 +21,30 @@ import * as QueryRunner from "./QueryRunner";
 import * as Scheduler from "./Scheduler";
 import { StorageActionWriter, StorageReader, StorageWriter } from "./Storage";
 
-type Middleware = (
-  httpApp: HttpApp.Default,
-) => HttpApp.Default<
-  never,
-  HttpApi.Api | HttpApiBuilder.Router | HttpRouter.HttpRouter.DefaultServices
->;
+type ApiLiveRequirements<DataModel extends GenericDataModel> =
+  | QueryRunner.QueryRunner
+  | MutationRunner.MutationRunner
+  | ActionRunner.ActionRunner
+  | Scheduler.Scheduler
+  | Auth.Auth
+  | StorageReader
+  | StorageWriter
+  | StorageActionWriter
+  | GenericActionCtx<DataModel>;
+
+type Middleware = HttpMiddleware;
 
 const makeHandler =
   <DataModel extends GenericDataModel>({
     pathPrefix,
+    api,
     apiLive,
     middleware,
     scalar,
   }: {
     pathPrefix: RoutePath;
-    apiLive: Layer.Layer<
-      HttpApi.Api,
-      never,
-      | QueryRunner.QueryRunner
-      | MutationRunner.MutationRunner
-      | ActionRunner.ActionRunner
-      | Scheduler.Scheduler
-      | Auth.Auth
-      | StorageReader
-      | StorageWriter
-      | StorageActionWriter
-      | GenericActionCtx<DataModel>
-    >;
+    api: HttpApiDef.AnyWithProps;
+    apiLive: Layer.Layer<unknown, never, ApiLiveRequirements<DataModel>>;
     middleware?: Middleware;
     scalar?: HttpApiScalar.ScalarConfig;
   }) =>
@@ -68,12 +60,14 @@ const makeHandler =
           StorageReader.layer(ctx.storage),
           StorageWriter.layer(ctx.storage),
           StorageActionWriter.layer(ctx.storage),
-          Layer.succeed(ActionCtx.ActionCtx<DataModel>(), ctx),
+          Layer.succeed(ActionCtx.ActionCtx<DataModel>())(
+            ctx as unknown as GenericActionCtx<GenericDataModel>,
+          ),
         ),
       ),
     );
 
-    const ApiDocsLive = HttpApiScalar.layer({
+    const ApiDocsLive = HttpApiScalar.layer(api, {
       path: `${pathPrefix}docs`,
       scalar: {
         baseServerURL: `${process.env["CONVEX_SITE_URL"]}${pathPrefix}`,
@@ -84,44 +78,35 @@ const makeHandler =
     const EnvLive = Layer.mergeAll(
       ApiLive,
       ApiDocsLive,
-      HttpServer.layerContext,
-      Layer.setConfigProvider(ConvexConfigProvider.make()),
+      ConfigProvider.layer(ConvexConfigProvider.make()),
     );
 
-    const { handler } = HttpApiBuilder.toWebHandler(
-      EnvLive,
-      middleware ? { middleware } : {},
-    );
+    const { handler } = HttpRouter.toWebHandler(EnvLive as any, {
+      ...(middleware ? { middleware } : {}),
+    }) as unknown as {
+      readonly handler: (request: Request) => Promise<Response>;
+    };
 
     return handler(request);
   };
 
 const makeHttpAction = <DataModel extends GenericDataModel>({
   pathPrefix,
+  api,
   apiLive,
   middleware,
   scalar,
 }: {
   pathPrefix: RoutePath;
-  apiLive: Layer.Layer<
-    HttpApi.Api,
-    never,
-    | QueryRunner.QueryRunner
-    | MutationRunner.MutationRunner
-    | ActionRunner.ActionRunner
-    | Scheduler.Scheduler
-    | Auth.Auth
-    | StorageReader
-    | StorageWriter
-    | StorageActionWriter
-    | GenericActionCtx<DataModel>
-  >;
+  api: HttpApiDef.AnyWithProps;
+  apiLive: Layer.Layer<unknown, never, ApiLiveRequirements<DataModel>>;
   middleware?: Middleware;
   scalar?: HttpApiScalar.ScalarConfig;
 }) =>
   httpActionGeneric(
     makeHandler<DataModel>({
       pathPrefix,
+      api,
       apiLive,
       ...(middleware ? { middleware } : {}),
       ...(scalar ? { scalar } : {}),
@@ -132,18 +117,8 @@ const makeHttpAction = <DataModel extends GenericDataModel>({
   );
 
 export type HttpApi_ = {
-  apiLive: Layer.Layer<
-    HttpApi.Api,
-    never,
-    | QueryRunner.QueryRunner
-    | MutationRunner.MutationRunner
-    | ActionRunner.ActionRunner
-    | Scheduler.Scheduler
-    | Auth.Auth
-    | StorageReader
-    | StorageWriter
-    | StorageActionWriter
-  >;
+  api: HttpApiDef.AnyWithProps;
+  apiLive: Layer.Layer<unknown, never, ApiLiveRequirements<GenericDataModel>>;
   middleware?: Middleware;
   scalar?: HttpApiScalar.ScalarConfig;
 };
@@ -153,30 +128,21 @@ export type RoutePath = "/" | `/${string}/`;
 const mountEffectHttpApi =
   <DataModel extends GenericDataModel>({
     pathPrefix,
+    api,
     apiLive,
     middleware,
     scalar,
   }: {
     pathPrefix: RoutePath;
-    apiLive: Layer.Layer<
-      HttpApi.Api,
-      never,
-      | QueryRunner.QueryRunner
-      | MutationRunner.MutationRunner
-      | ActionRunner.ActionRunner
-      | Scheduler.Scheduler
-      | Auth.Auth
-      | StorageReader
-      | StorageWriter
-      | StorageActionWriter
-      | GenericActionCtx<DataModel>
-    >;
+    api: HttpApiDef.AnyWithProps;
+    apiLive: Layer.Layer<unknown, never, ApiLiveRequirements<DataModel>>;
     middleware?: Middleware;
     scalar?: HttpApiScalar.ScalarConfig;
   }) =>
   (convexHttpRouter: ConvexHttpRouter): ConvexHttpRouter => {
     const handler = makeHttpAction<DataModel>({
       pathPrefix,
+      api,
       apiLive,
       ...(middleware ? { middleware } : {}),
       ...(scalar ? { scalar } : {}),
@@ -204,9 +170,10 @@ export const make = (httpApis: HttpApis): ConvexHttpRouter => {
     Record.toEntries,
     Array.reduce(
       httpRouter(),
-      (convexHttpRouter, [pathPrefix, { apiLive, middleware, scalar }]) =>
+      (convexHttpRouter, [pathPrefix, { api, apiLive, middleware, scalar }]) =>
         mountEffectHttpApi({
           pathPrefix: pathPrefix as RoutePath,
+          api,
           apiLive,
           ...(middleware ? { middleware } : {}),
           ...(scalar ? { scalar } : {}),

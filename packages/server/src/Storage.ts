@@ -4,17 +4,22 @@ import type {
   StorageWriter as ConvexStorageWriter,
 } from "convex/server";
 import type { GenericId } from "convex/values";
-import { Effect, flow, Layer, Option, pipe, Schema } from "effect";
+import { Effect, flow, Layer, Option, pipe, Schema, ServiceMap } from "effect";
 
 const makeStorageReader = (storageReader: ConvexStorageReader) => ({
   getUrl: (storageId: GenericId<"_storage">) =>
     Effect.promise(() => storageReader.getUrl(storageId)).pipe(
       Effect.andThen(
         flow(
-          Option.fromNullable,
+          Option.fromNullishOr,
           Option.match({
             onNone: () => Effect.fail(new BlobNotFoundError({ id: storageId })),
-            onSome: (doc) => pipe(doc, Schema.decode(Schema.URL), Effect.orDie),
+            onSome: (doc) =>
+              pipe(
+                doc,
+                Schema.decodeUnknownEffect(Schema.URL),
+                Effect.orDie,
+              ),
           }),
         ),
       ),
@@ -25,7 +30,7 @@ const makeStorageWriter = (storageWriter: ConvexStorageWriter) => ({
   generateUploadUrl: () =>
     Effect.promise(() => storageWriter.generateUploadUrl()).pipe(
       Effect.andThen((url) =>
-        pipe(url, Schema.decode(Schema.URL), Effect.orDie),
+        pipe(url, Schema.decodeUnknownEffect(Schema.URL), Effect.orDie),
       ),
     ),
   delete: (storageId: GenericId<"_storage">) =>
@@ -42,7 +47,7 @@ const makeStorageActionWriter = (
     Effect.promise(() => storageActionWriter.get(storageId)).pipe(
       Effect.andThen(
         flow(
-          Option.fromNullable,
+          Option.fromNullishOr,
           Option.match({
             onNone: () => Effect.fail(new BlobNotFoundError({ id: storageId })),
             onSome: Effect.succeed,
@@ -54,34 +59,39 @@ const makeStorageActionWriter = (
     Effect.promise(() => storageActionWriter.store(blob, options)),
 });
 
-export class StorageReader extends Effect.Tag(
-  "@confect/server/Storage/StorageReader",
-)<StorageReader, ReturnType<typeof makeStorageReader>>() {
+export class StorageReader extends ServiceMap.Service<
+  StorageReader,
+  ReturnType<typeof makeStorageReader>
+>()("@confect/server/Storage/StorageReader") {
   static readonly layer = (storageReader: ConvexStorageReader) =>
-    Layer.succeed(this, makeStorageReader(storageReader));
+    Layer.succeed(StorageReader)(makeStorageReader(storageReader));
 }
 
-export class StorageWriter extends Effect.Tag(
-  "@confect/server/Storage/StorageWriter",
-)<StorageWriter, ReturnType<typeof makeStorageWriter>>() {
+export class StorageWriter extends ServiceMap.Service<
+  StorageWriter,
+  ReturnType<typeof makeStorageWriter>
+>()("@confect/server/Storage/StorageWriter") {
   static readonly layer = (storageWriter: ConvexStorageWriter) =>
-    Layer.succeed(this, makeStorageWriter(storageWriter));
+    Layer.succeed(StorageWriter)(makeStorageWriter(storageWriter));
 }
 
-export class StorageActionWriter extends Effect.Tag(
-  "@confect/server/Storage/StorageActionWriter",
-)<StorageActionWriter, ReturnType<typeof makeStorageActionWriter>>() {
+export class StorageActionWriter extends ServiceMap.Service<
+  StorageActionWriter,
+  ReturnType<typeof makeStorageActionWriter>
+>()("@confect/server/Storage/StorageActionWriter") {
   static readonly layer = (storageActionWriter: ConvexStorageActionWriter) =>
-    Layer.succeed(this, makeStorageActionWriter(storageActionWriter));
+    Layer.succeed(StorageActionWriter)(
+      makeStorageActionWriter(storageActionWriter),
+    );
 }
 
-export class BlobNotFoundError extends Schema.TaggedError<BlobNotFoundError>()(
+export class BlobNotFoundError extends Schema.TaggedErrorClass<BlobNotFoundError>()(
   "BlobNotFoundError",
   {
     id: Schema.String,
   },
 ) {
-  override get message(): string {
+  get message(): string {
     return `File with ID '${this.id}' not found`;
   }
 }

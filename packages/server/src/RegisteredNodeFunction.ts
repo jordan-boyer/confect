@@ -1,12 +1,16 @@
 import type * as FunctionSpec from "@confect/core/FunctionSpec";
-import { NodeContext } from "@effect/platform-node";
+import {
+  layer as nodeServicesLayer,
+  type NodeServices,
+} from "@effect/platform-node/NodeServices";
 import {
   actionGeneric,
   type DefaultFunctionArgs,
   internalActionGeneric,
 } from "convex/server";
 import type { Effect } from "effect";
-import { Layer, Match, type Schema } from "effect";
+import { Layer, Match } from "effect";
+import type { Codec } from "effect/Schema";
 import type * as Api from "./Api";
 import type * as DatabaseSchema from "./DatabaseSchema";
 import type * as Handler from "./Handler";
@@ -31,8 +35,11 @@ export const make = <Api_ extends Api.AnyWithPropsWithRuntime<"Node">>(
 
       return genericFunction(
         nodeActionFunction(api.databaseSchema, {
-          args: functionProvenance.args,
-          returns: functionProvenance.returns,
+          args: functionProvenance.args as Codec<
+            unknown,
+            DefaultFunctionArgs
+          >,
+          returns: functionProvenance.returns as Codec<unknown, unknown>,
           handler: handler as Handler.AnyConfectProvenance,
         }),
       );
@@ -54,15 +61,15 @@ const nodeActionFunction = <
     returns,
     handler,
   }: {
-    args: Schema.Schema<Args, ConvexArgs>;
-    returns: Schema.Schema<Returns, ConvexReturns>;
+    args: Codec<Args, ConvexArgs>;
+    returns: Codec<Returns, ConvexReturns>;
     handler: (
       a: Args,
     ) => Effect.Effect<
       Returns,
       E,
       | RegisteredFunction.ActionServices<DatabaseSchema_>
-      | NodeContext.NodeContext
+      | NodeServices
     >;
   },
 ) =>
@@ -73,6 +80,6 @@ const nodeActionFunction = <
     createLayer: (ctx) =>
       Layer.mergeAll(
         RegisteredFunction.actionLayer(databaseSchema, ctx),
-        NodeContext.layer,
+        nodeServicesLayer,
       ),
   });

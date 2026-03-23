@@ -1,6 +1,6 @@
 import type { FunctionSpec, RuntimeAndFunctionType } from "@confect/core";
 import type * as FunctionProvenance from "@confect/core/FunctionProvenance";
-import type { NodeContext } from "@effect/platform-node";
+import type { NodeServices } from "@effect/platform-node/NodeServices";
 import type { Effect } from "effect";
 import type * as ActionCtx from "./ActionCtx";
 import type * as ActionRunner from "./ActionRunner";
@@ -125,7 +125,7 @@ export type NodeRuntimeAction<
     FunctionSpec.AnyWithPropsWithFunctionType<RuntimeAndFunctionType.NodeAction>,
 > = Base<
   FunctionSpec_,
-  ActionServices<DatabaseSchema_> | NodeContext.NodeContext
+  ActionServices<DatabaseSchema_> | NodeServices
 >;
 
 type Base<FunctionSpec_ extends FunctionSpec.AnyWithProps, R> = (

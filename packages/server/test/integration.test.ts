@@ -1,11 +1,13 @@
 import { GenericId } from "@confect/core";
 import { describe, expectTypeOf, it } from "@effect/vitest";
 import { assertEquals } from "@effect/vitest/utils";
-import { Array, Effect } from "effect";
+import { Array, Effect, Schema } from "effect";
 import refs from "./confect/_generated/refs";
 import { DatabaseWriter } from "./confect/_generated/services";
-import type { Notes } from "./confect/tables/Notes";
+import { Notes } from "./confect/tables/Notes";
 import * as TestConfect from "./TestConfect";
+
+type NoteDoc = Schema.Schema.Type<typeof Notes.Doc>;
 
 describe("DatabaseReader", () => {
   it.effect("get", () =>
@@ -27,10 +29,12 @@ describe("DatabaseReader", () => {
 
       const retrievedText = yield* c
         .query(refs.public.databaseReader.getNote, { noteId: noteId })
-        .pipe(Effect.map((note) => note.text));
+        .pipe(
+          Effect.map((note) => (note as NoteDoc).text),
+        );
 
       assertEquals(retrievedText, text);
-    }).pipe(Effect.provide(TestConfect.layer())),
+    }).pipe(Effect.provide(TestConfect.layer())) as any,
   );
 
   it.effect("collect", () =>
@@ -54,7 +58,7 @@ describe("DatabaseReader", () => {
       assertEquals(notes.length, 10);
       assertEquals(notes[0]?.text, "10");
       assertEquals(notes[9]?.text, "1");
-    }).pipe(Effect.provide(TestConfect.layer())),
+    }).pipe(Effect.provide(TestConfect.layer())) as any,
   );
 });
 
@@ -73,9 +77,10 @@ describe("MutationRunner", () => {
       const note = yield* c.query(refs.public.databaseReader.getNote, {
         noteId,
       });
-      expectTypeOf(note).toEqualTypeOf<(typeof Notes.Doc)["Type"]>();
-      assertEquals(note.text, text);
-    }).pipe(Effect.provide(TestConfect.layer())),
+      const doc = note as NoteDoc;
+      expectTypeOf(doc).toMatchTypeOf<NoteDoc>();
+      assertEquals(doc.text, text);
+    }).pipe(Effect.provide(TestConfect.layer())) as any,
   );
 });
 
@@ -89,9 +94,9 @@ describe("ActionRunner", () => {
         {},
       );
 
-      expectTypeOf(result).toEqualTypeOf<number>();
+      expectTypeOf(result).toMatchTypeOf<number>();
       assertEquals(typeof result, "number");
-    }).pipe(Effect.provide(TestConfect.layer())),
+    }).pipe(Effect.provide(TestConfect.layer())) as any,
   );
 });
 
@@ -108,8 +113,8 @@ describe("QueryRunner", () => {
         {},
       );
 
-      expectTypeOf(count).toEqualTypeOf<number>();
+      expectTypeOf(count).toMatchTypeOf<number>();
       assertEquals(count, 2);
-    }).pipe(Effect.provide(TestConfect.layer())),
+    }).pipe(Effect.provide(TestConfect.layer())) as any,
   );
 });

@@ -5,7 +5,7 @@ import type {
   RegisteredMutation,
   RegisteredQuery,
 } from "convex/server";
-import type { Schema } from "effect";
+import type { Top } from "effect/Schema";
 import { Predicate } from "effect";
 import * as FunctionProvenance from "./FunctionProvenance";
 import { validateConfectFunctionIdentifier } from "./internal/utils";
@@ -93,7 +93,7 @@ export type Name<FunctionSpec_ extends AnyWithProps> = FunctionSpec_["name"];
 export type Args<FunctionSpec_ extends AnyWithProps> = FunctionSpec_ extends {
   functionProvenance: {
     _tag: "Confect";
-    args: infer ArgsSchema_ extends Schema.Schema.AnyNoContext;
+    args: infer ArgsSchema_ extends Top;
   };
 }
   ? ArgsSchema_["Type"]
@@ -107,7 +107,7 @@ export type Returns<FunctionSpec_ extends AnyWithProps> =
   FunctionSpec_ extends {
     functionProvenance: {
       _tag: "Confect";
-      returns: infer ReturnsSchema_ extends Schema.Schema.AnyNoContext;
+      returns: infer ReturnsSchema_ extends Top;
     };
   }
     ? ReturnsSchema_["Type"]
@@ -121,7 +121,7 @@ export type EncodedArgs<FunctionSpec_ extends AnyWithProps> =
   FunctionSpec_ extends {
     functionProvenance: {
       _tag: "Confect";
-      args: infer ArgsSchema_ extends Schema.Schema.AnyNoContext;
+      args: infer ArgsSchema_ extends Top;
     };
   }
     ? ArgsSchema_["Encoded"]
@@ -135,7 +135,7 @@ export type EncodedReturns<FunctionSpec_ extends AnyWithProps> =
   FunctionSpec_ extends {
     functionProvenance: {
       _tag: "Confect";
-      returns: infer ReturnsSchema_ extends Schema.Schema.AnyNoContext;
+      returns: infer ReturnsSchema_ extends Top;
     };
   }
     ? ReturnsSchema_["Encoded"]
@@ -194,8 +194,8 @@ const make =
   ) =>
   <
     const Name_ extends string,
-    Args_ extends Schema.Schema.AnyNoContext,
-    Returns_ extends Schema.Schema.AnyNoContext,
+    Args_ extends Top,
+    Returns_ extends Top,
   >({
     name,
     args,

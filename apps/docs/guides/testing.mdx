@@ -6,6 +6,10 @@ description: "Test your Confect functions without a live Convex backend."
 
 `@confect/test` wraps [`convex-test`](https://docs.convex.dev/testing) with Effect-native APIs. It provides a `TestConfect` service that lets you call your Confect functions using refs, run arbitrary mutation-context code for test setup, and test with user identities.
 
+<Note>
+  With **Effect 4**, schema-driven calls surface failures as **`Schema.SchemaError`** (not the older `ParseResult.ParseError` type). `TestConfect.run(handler, returns)` types the error channel as **`E | Schema.SchemaError`** when you pass a returns schema, where `E` is the handler’s error type.
+</Note>
+
 ## Installation
 
 <CodeGroup>
@@ -82,7 +86,7 @@ describe("notes", () => {
 
 ## Calling functions
 
-`TestConfect` provides `query`, `mutation`, and `action` methods that accept a ref and args, returning an `Effect` with the decoded result.
+`TestConfect` provides `query`, `mutation`, and `action` methods that accept a ref and args, returning an `Effect` that succeeds with the decoded result or fails with **`Schema.SchemaError`** if encoding args or decoding the return value fails.
 
 ```ts
 Effect.gen(function* () {

@@ -1,6 +1,5 @@
-import { Path } from "@effect/platform";
 import { Ansi, AnsiDoc } from "@effect/printer-ansi";
-import { Console, Effect, pipe, String } from "effect";
+import { Console, Effect, Path, pipe, String } from "effect";
 import type * as FunctionPath from "./FunctionPath";
 import * as GroupPath from "./GroupPath";
 import { ProjectRoot } from "./services/ProjectRoot";
@@ -9,7 +8,7 @@ import { ProjectRoot } from "./services/ProjectRoot";
 
 const logFile = (char: string, color: Ansi.Ansi) => (fullPath: string) =>
   Effect.gen(function* () {
-    const projectRoot = yield* ProjectRoot.get;
+    const projectRoot = yield* (yield* ProjectRoot).get;
     const path = yield* Path.Path;
 
     const prefix = projectRoot + path.sep;

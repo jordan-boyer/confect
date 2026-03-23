@@ -1,9 +1,15 @@
 import type { GenericActionCtx, GenericDataModel } from "convex/server";
-import { Context } from "effect";
+import { ServiceMap } from "effect";
 
-export const ActionCtx = <DataModel extends GenericDataModel>() =>
-  Context.GenericTag<GenericActionCtx<DataModel>>("@confect/server/ActionCtx");
+export type ActionCtxId = "@confect/server/ActionCtx";
 
-export type ActionCtx<DataModel extends GenericDataModel> = ReturnType<
-  typeof ActionCtx<DataModel>
->["Identifier"];
+const actionCtx = ServiceMap.Service<
+  ActionCtxId,
+  GenericActionCtx<GenericDataModel>
+>("@confect/server/ActionCtx");
+
+export const ActionCtx = <_DataModel extends GenericDataModel>() => actionCtx;
+
+export type ActionCtx<
+  _DataModel extends GenericDataModel = GenericDataModel,
+> = ActionCtxId;

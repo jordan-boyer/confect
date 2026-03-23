@@ -1,10 +1,11 @@
 import { HttpApi } from "@confect/server";
-import { HttpMiddleware } from "@effect/platform";
+import * as HttpMiddleware from "effect/unstable/http/HttpMiddleware";
 import { flow } from "effect";
-import { ApiLive } from "./http/path-prefix";
+import { Api, ApiLive } from "./http/path-prefix";
 
 export default HttpApi.make({
   "/path-prefix/": {
+    api: Api,
     apiLive: ApiLive,
     middleware: flow(HttpMiddleware.cors(), HttpMiddleware.logger),
   },

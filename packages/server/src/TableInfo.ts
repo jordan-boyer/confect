@@ -10,7 +10,7 @@ import type {
   SystemIndexes,
 } from "convex/server";
 import type { GenericValidator } from "convex/values";
-import type { Schema, Types } from "effect";
+import type { Types } from "effect";
 import type * as Document_ from "./Document";
 import type * as Table from "./Table";
 
@@ -64,11 +64,6 @@ export type ConvexTableInfo<TableInfo_ extends AnyWithProps> = {
   searchIndexes: TableInfo_["searchIndexes"];
   vectorIndexes: TableInfo_["vectorIndexes"];
 };
-
-export type TableSchema<TableInfo_ extends AnyWithProps> = Schema.Schema<
-  TableInfo_["document"],
-  TableInfo_["encodedDocument"]
->;
 
 export type Document<TableInfo_ extends AnyWithProps> = TableInfo_["document"];
 

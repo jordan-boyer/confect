@@ -55,28 +55,38 @@ export const make = <Api_ extends Api.AnyWithProps>(
     api: Api_,
     registryItem: RegistryItem.AnyWithProps,
   ) => RegisteredFunction.Any,
-) =>
-  Effect.gen(function* () {
+) => {
+  const program = Effect.gen(function* () {
     const registry = yield* Registry.Registry;
     const functionImplItems = yield* Ref.get(registry);
-    const { api, finalizationStatus } = yield* Impl.Impl<Api_, "Finalized">();
+    const { api, finalizationStatus } = yield* Impl.implService;
 
     return yield* Match.value(
       finalizationStatus as Impl.FinalizationStatus,
     ).pipe(
       Match.withReturnType<Effect.Effect<RegisteredFunctions<Api_["spec"]>>>(),
       Match.when("Unfinalized", () =>
-        Effect.dieMessage("Impl is not finalized"),
+        Effect.die("Impl is not finalized"),
       ),
       Match.when("Finalized", () =>
         Effect.succeed(
           mapLeaves<RegistryItem.AnyWithProps, RegisteredFunction.Any>(
             functionImplItems,
             RegistryItem.isRegistryItem,
-            (registryItem) => makeRegisteredFunction(api, registryItem),
+            (registryItem) =>
+              makeRegisteredFunction(api as Api_, registryItem),
           ) as RegisteredFunctions<Api_["spec"]>,
         ),
       ),
       Match.exhaustive,
     );
-  }).pipe(Effect.provide(impl), Effect.runSync);
+  }).pipe(Effect.provide(impl));
+
+  return Effect.runSync(
+    program as Effect.Effect<
+      RegisteredFunctions<Api_["spec"]>,
+      never,
+      never
+    >,
+  );
+};

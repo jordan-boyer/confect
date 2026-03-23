@@ -10,6 +10,8 @@ Confect provides a `ConfigProvider` that is compatible with the Convex runtime, 
 
 Use `Config` from Effect to read [Convex environment variables](https://docs.convex.dev/production/environment-variables) in your function handlers.
 
+In Effect 4, `Config.string(...)` returns **`Config<T>`**, not **`Effect`**. You either **`yield*`** it inside `Effect.gen`, or wrap it with **`Effect.fromYieldable`** to get an `Effect` (same runtime behavior).
+
 ```ts confect/settings.impl.ts
 import { FunctionImpl } from "@confect/server";
 import { Config, Effect } from "effect";
@@ -20,7 +22,8 @@ const getApiKey = FunctionImpl.make(
   api,
   "settings",
   "getApiKey",
-  () => Config.string("API_KEY").pipe(Effect.orDie),
+  () =>
+    Effect.fromYieldable(Config.string("API_KEY")).pipe(Effect.orDie),
 );
 ```
 
@@ -55,7 +58,7 @@ const getApiKey = FunctionImpl.make(
   "settings",
   "getApiKey",
   () =>
-    Config.string("API_KEY").pipe(
+    Effect.fromYieldable(Config.string("API_KEY")).pipe(
       Effect.withConfigProvider(provider),
       Effect.orDie,
     ),

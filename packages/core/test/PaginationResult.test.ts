@@ -7,7 +7,7 @@ test("PaginationResult's encoded type extends Convex type", () => {
   const _paginationResult = PaginationResult.PaginationResult(Schema.String);
   type EncodedPaginationResult = (typeof _paginationResult)["Encoded"];
 
-  expectTypeOf<EncodedPaginationResult>().toExtend<
+  expectTypeOf<EncodedPaginationResult>().toMatchTypeOf<
     ConvexPaginationResult<string>
   >();
 });

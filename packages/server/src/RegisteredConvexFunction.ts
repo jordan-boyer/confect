@@ -2,6 +2,7 @@ import type * as FunctionSpec from "@confect/core/FunctionSpec";
 import {
   actionGeneric,
   type DefaultFunctionArgs,
+  type GenericDataModel,
   type GenericMutationCtx,
   type GenericQueryCtx,
   internalActionGeneric,
@@ -10,7 +11,8 @@ import {
   mutationGeneric,
   queryGeneric,
 } from "convex/server";
-import { Effect, Layer, Match, pipe, Schema } from "effect";
+import { ConfigProvider, Effect, Layer, Match, pipe, Schema } from "effect";
+import type { Codec, SchemaError } from "effect/Schema";
 import type * as Api from "./Api";
 import * as Auth from "./Auth";
 import * as ConvexConfigProvider from "./ConvexConfigProvider";
@@ -49,8 +51,11 @@ export const make = <Api_ extends Api.AnyWithPropsWithRuntime<"Convex">>(
 
           return genericFunction(
             queryFunction(api.databaseSchema, {
-              args: functionProvenance.args,
-              returns: functionProvenance.returns,
+              args: functionProvenance.args as Codec<
+                unknown,
+                DefaultFunctionArgs
+              >,
+              returns: functionProvenance.returns as Codec<unknown, unknown>,
               handler: handler as Handler.AnyConfectProvenance,
             }),
           );
@@ -64,8 +69,11 @@ export const make = <Api_ extends Api.AnyWithPropsWithRuntime<"Convex">>(
 
           return genericFunction(
             mutationFunction(api.databaseSchema, {
-              args: functionProvenance.args,
-              returns: functionProvenance.returns,
+              args: functionProvenance.args as Codec<
+                unknown,
+                DefaultFunctionArgs
+              >,
+              returns: functionProvenance.returns as Codec<unknown, unknown>,
               handler: handler as Handler.AnyConfectProvenance,
             }),
           );
@@ -79,8 +87,11 @@ export const make = <Api_ extends Api.AnyWithPropsWithRuntime<"Convex">>(
 
           return genericFunction(
             convexActionFunction(api.databaseSchema, {
-              args: functionProvenance.args,
-              returns: functionProvenance.returns,
+              args: functionProvenance.args as Codec<
+                unknown,
+                DefaultFunctionArgs
+              >,
+              returns: functionProvenance.returns as Codec<unknown, unknown>,
               handler: handler as Handler.AnyConfectProvenance,
             }),
           );
@@ -105,8 +116,8 @@ const queryFunction = <
     returns,
     handler,
   }: {
-    args: Schema.Schema<Args, ConvexArgs>;
-    returns: Schema.Schema<Returns, ConvexReturns>;
+    args: Codec<Args, ConvexArgs>;
+    returns: Codec<Returns, ConvexReturns>;
     handler: (
       a: Args,
     ) => Effect.Effect<
@@ -132,7 +143,7 @@ const queryFunction = <
   ): Promise<ConvexReturns> =>
     pipe(
       actualArgs,
-      Schema.decode(args),
+      Schema.decodeUnknownEffect(args),
       Effect.orDie,
       Effect.andThen((decodedArgs) =>
         pipe(
@@ -147,17 +158,19 @@ const queryFunction = <
                 QueryCtx.QueryCtx<
                   DataModel.ToConvex<DataModel.FromSchema<DatabaseSchema_>>
                 >(),
-                ctx,
-              ),
-              Layer.setConfigProvider(ConvexConfigProvider.make()),
+              )(ctx as unknown as GenericQueryCtx<GenericDataModel>),
+              ConfigProvider.layer(ConvexConfigProvider.make()),
             ),
           ),
         ),
       ),
       Effect.andThen((convexReturns) =>
-        Schema.encodeUnknown(returns)(convexReturns),
+        Schema.encodeUnknownEffect(returns)(convexReturns),
       ),
-      Effect.runPromise,
+      (eff) =>
+        Effect.runPromise(
+          eff as Effect.Effect<ConvexReturns, SchemaError, never>,
+        ),
     ),
 });
 
@@ -178,9 +191,8 @@ export const mutationLayer = <Schema extends DatabaseSchema.AnyWithProps>(
       MutationCtx.MutationCtx<
         DataModel.ToConvex<DataModel.FromSchema<Schema>>
       >(),
-      ctx,
-    ),
-    Layer.setConfigProvider(ConvexConfigProvider.make()),
+    )(ctx as unknown as GenericMutationCtx<GenericDataModel>),
+    ConfigProvider.layer(ConvexConfigProvider.make()),
   );
 
 export type MutationServices<Schema extends DatabaseSchema.AnyWithProps> =
@@ -208,8 +220,8 @@ const mutationFunction = <
     returns,
     handler,
   }: {
-    args: Schema.Schema<Args, ConvexArgs>;
-    returns: Schema.Schema<Returns, ConvexReturns>;
+    args: Codec<Args, ConvexArgs>;
+    returns: Codec<Returns, ConvexReturns>;
     handler: (a: Args) => Effect.Effect<Returns, E, MutationServices<Schema>>;
   },
 ) => ({
@@ -221,15 +233,18 @@ const mutationFunction = <
   ): Promise<ConvexReturns> =>
     pipe(
       actualArgs,
-      Schema.decode(args),
+      Schema.decodeUnknownEffect(args),
       Effect.orDie,
       Effect.andThen((decodedArgs) =>
         handler(decodedArgs).pipe(Effect.provide(mutationLayer(schema, ctx))),
       ),
       Effect.andThen((convexReturns) =>
-        Schema.encodeUnknown(returns)(convexReturns),
+        Schema.encodeUnknownEffect(returns)(convexReturns),
       ),
-      Effect.runPromise,
+      (eff) =>
+        Effect.runPromise(
+          eff as Effect.Effect<ConvexReturns, SchemaError, never>,
+        ),
     ),
 });
 
@@ -247,8 +262,8 @@ const convexActionFunction = <
     returns,
     handler,
   }: {
-    args: Schema.Schema<Args, ConvexArgs>;
-    returns: Schema.Schema<Returns, ConvexReturns>;
+    args: Codec<Args, ConvexArgs>;
+    returns: Codec<Returns, ConvexReturns>;
     handler: (
       a: Args,
     ) => Effect.Effect<
@@ -265,6 +280,6 @@ const convexActionFunction = <
     createLayer: (ctx) =>
       Layer.mergeAll(
         RegisteredFunction.actionLayer(schema, ctx),
-        Layer.setConfigProvider(ConvexConfigProvider.make()),
+        ConfigProvider.layer(ConvexConfigProvider.make()),
       ),
   });
